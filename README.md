@@ -21,6 +21,12 @@ mvn test
 mvn -pl desktop -am exec:java
 ```
 
+If the external art folder is not adjacent to this repo, override it:
+
+```powershell
+mvn -pl desktop -am exec:java -Dumbra.assets.root="C:\path\to\assets"
+```
+
 Controls:
 
 - `A/D` or arrow keys: move

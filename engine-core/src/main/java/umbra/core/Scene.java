@@ -14,4 +14,7 @@ public interface Scene {
 
     default void onExit() {
     }
+
+    default void dispose() {
+    }
 }

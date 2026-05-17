@@ -33,4 +33,11 @@ public final class SceneManager {
     public boolean hasScene() {
         return activeScene != null;
     }
+
+    public void dispose() {
+        if (activeScene != null) {
+            activeScene.dispose();
+            activeScene = null;
+        }
+    }
 }

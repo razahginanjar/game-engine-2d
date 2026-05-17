@@ -6,6 +6,7 @@ import com.badlogic.gdx.Input;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.graphics.OrthographicCamera;
+import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
 import com.badlogic.gdx.utils.viewport.FitViewport;
 import umbra.core.EngineConfig;
@@ -15,7 +16,9 @@ import umbra.core.SceneManager;
 public final class Umbra2DGame extends ApplicationAdapter {
     private EngineConfig config;
     private FixedStepEngine engine;
+    private SceneManager scenes;
     private ShapeRenderer shapeRenderer;
+    private SpriteBatch spriteBatch;
     private OrthographicCamera camera;
     private FitViewport viewport;
 
@@ -23,14 +26,15 @@ public final class Umbra2DGame extends ApplicationAdapter {
     public void create() {
         config = EngineConfig.metroidvaniaDefaults();
         shapeRenderer = new ShapeRenderer();
+        spriteBatch = new SpriteBatch();
         camera = new OrthographicCamera();
         viewport = new FitViewport(config.viewportWidth(), config.viewportHeight(), camera);
         viewport.apply();
         camera.position.set(config.viewportWidth() / 2.0f, config.viewportHeight() / 2.0f, 0.0f);
         camera.update();
 
-        SceneManager scenes = new SceneManager();
-        scenes.setScene(new TestRoomScene(shapeRenderer, camera, config));
+        scenes = new SceneManager();
+        scenes.setScene(new TestRoomScene(shapeRenderer, spriteBatch, camera, config));
         engine = new FixedStepEngine(config, scenes);
     }
 
@@ -46,6 +50,7 @@ public final class Umbra2DGame extends ApplicationAdapter {
         Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
         camera.update();
         shapeRenderer.setProjectionMatrix(camera.combined);
+        spriteBatch.setProjectionMatrix(camera.combined);
         engine.render();
     }
 
@@ -56,6 +61,10 @@ public final class Umbra2DGame extends ApplicationAdapter {
 
     @Override
     public void dispose() {
+        if (scenes != null) {
+            scenes.dispose();
+        }
         shapeRenderer.dispose();
+        spriteBatch.dispose();
     }
 }
