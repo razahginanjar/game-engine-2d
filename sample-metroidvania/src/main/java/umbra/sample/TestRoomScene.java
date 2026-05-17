@@ -13,8 +13,10 @@ import umbra.combat.CombatResolver;
 import umbra.combat.CombatTeam;
 import umbra.combat.DamageApplication;
 import umbra.combat.DamageEvent;
+import umbra.combat.FacingDirection;
 import umbra.combat.HealthPool;
 import umbra.combat.HitPauseTimer;
+import umbra.combat.HitboxDefinition;
 import umbra.combat.HitboxInstance;
 import umbra.combat.HurtboxInstance;
 import umbra.core.EngineConfig;
@@ -62,12 +64,14 @@ final class TestRoomScene implements Scene {
             0.0f,
             "contact"
     );
+    private final HitboxDefinition slashHitboxDefinition = new HitboxDefinition(34.0f, 28.0f, 0.0f, 5.0f);
     private final Aabb slimeHurtbox;
     private final HealthPool playerHealth = new HealthPool(5, 0.75f);
     private final HealthPool slimeHealth = new HealthPool(3, 0.0f);
     private final HitPauseTimer hitPauseTimer = new HitPauseTimer();
     private HitboxInstance currentAttackHitbox;
     private boolean facingRight = true;
+    private boolean attackFacingRight = true;
     private boolean previousJumpDown;
     private PlayerState state = PlayerState.IDLE;
 
@@ -124,6 +128,7 @@ final class TestRoomScene implements Scene {
         }
 
         if (Gdx.input.isKeyJustPressed(Input.Keys.J) && attackTimeline.acceptingNewAttack() && !playerHealth.defeated()) {
+            attackFacingRight = facingRight;
             attackTimeline.start(slashTimeline);
             currentAttackHitbox = createPlayerSlashHitbox();
         }
@@ -171,12 +176,12 @@ final class TestRoomScene implements Scene {
     }
 
     private HitboxInstance createPlayerSlashHitbox() {
-        float hitboxX = facingRight ? player.x() + player.width() : player.x() - 34.0f;
-        return new HitboxInstance(
+        return slashHitboxDefinition.createInstance(
                 PLAYER_ENTITY_ID,
                 CombatTeam.PLAYER,
                 slashTimeline.attack(),
-                new Aabb(hitboxX, player.y() + 5.0f, 34.0f, 28.0f),
+                player.bounds(),
+                attackFacingRight ? FacingDirection.RIGHT : FacingDirection.LEFT,
                 false
         );
     }
@@ -187,6 +192,10 @@ final class TestRoomScene implements Scene {
         attackTimeline.update(deltaSeconds);
 
         if (currentAttackHitbox != null) {
+            currentAttackHitbox.setBounds(slashHitboxDefinition.createBounds(
+                    player.bounds(),
+                    attackFacingRight ? FacingDirection.RIGHT : FacingDirection.LEFT
+            ));
             currentAttackHitbox.setActive(attackTimeline.hitboxActive());
             if (!slimeHealth.defeated()) {
                 List<DamageEvent> damageEvents = combatResolver.resolve(

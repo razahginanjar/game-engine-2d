@@ -13,7 +13,7 @@ public final class HitboxInstance {
     private final int ownerEntityId;
     private final CombatTeam team;
     private final AttackDefinition attack;
-    private final Aabb bounds;
+    private Aabb bounds;
     private final Set<Integer> alreadyHitEntityIds = new HashSet<>();
     private boolean active;
 
@@ -43,6 +43,10 @@ public final class HitboxInstance {
 
     public Aabb bounds() {
         return bounds;
+    }
+
+    public void setBounds(Aabb bounds) {
+        this.bounds = Objects.requireNonNull(bounds, "bounds must not be null");
     }
 
     public boolean active() {
