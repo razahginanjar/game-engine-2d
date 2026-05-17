@@ -13,6 +13,7 @@ import umbra.combat.CombatResolver;
 import umbra.combat.DamageApplication;
 import umbra.combat.DamageEvent;
 import umbra.combat.HealthPool;
+import umbra.combat.HitPauseTimer;
 import umbra.combat.HitboxInstance;
 import umbra.combat.HurtboxInstance;
 import umbra.core.EngineConfig;
@@ -63,6 +64,7 @@ final class TestRoomScene implements Scene {
     private final Aabb slimeHurtbox;
     private final HealthPool playerHealth = new HealthPool(5, 0.75f);
     private final HealthPool slimeHealth = new HealthPool(3, 0.0f);
+    private final HitPauseTimer hitPauseTimer = new HitPauseTimer();
     private HitboxInstance currentAttackHitbox;
     private boolean facingRight = true;
     private boolean previousJumpDown;
@@ -85,6 +87,12 @@ final class TestRoomScene implements Scene {
 
     @Override
     public void update(float deltaSeconds) {
+        if (hitPauseTimer.paused()) {
+            hitPauseTimer.update(deltaSeconds);
+            clampCameraToRoom();
+            return;
+        }
+
         boolean jumpDown = Gdx.input.isKeyPressed(Input.Keys.SPACE) || Gdx.input.isKeyPressed(Input.Keys.UP);
         PlayerInput input = new PlayerInput(
                 Gdx.input.isKeyPressed(Input.Keys.A) || Gdx.input.isKeyPressed(Input.Keys.LEFT),
@@ -109,6 +117,7 @@ final class TestRoomScene implements Scene {
             player.setVelocityY(0.0f);
             playerHealth.reset();
             slimeHealth.reset();
+            hitPauseTimer.reset();
             currentAttackHitbox = null;
             attackTimeline.reset();
         }
@@ -183,7 +192,10 @@ final class TestRoomScene implements Scene {
                         List.of(new HurtboxInstance(SLIME_ENTITY_ID, slimeHurtbox, true))
                 );
                 for (DamageEvent event : damageEvents) {
-                    slimeHealth.apply(event);
+                    DamageApplication application = slimeHealth.apply(event);
+                    if (application.applied()) {
+                        hitPauseTimer.trigger(event.hitPauseSeconds());
+                    }
                 }
             }
 
@@ -299,6 +311,7 @@ final class TestRoomScene implements Scene {
         Gdx.graphics.setTitle("Umbra2D | " + room.roomId()
                 + " | " + state
                 + " | attack=" + attackTimeline.phase()
+                + " | hitPause=" + hitPauseTimer.paused()
                 + " | playerHP=" + playerHealth.currentHealth()
                 + " | slimeHP=" + slimeHealth.currentHealth()
                 + " | A/D move, Space jump, J attack, R reset, Esc quit");
