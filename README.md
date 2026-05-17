@@ -46,7 +46,7 @@ Raw art assets live outside this implementation repo in `../assets`. The reposit
 
 Initial source asset mapping:
 
-- Knight: `../assets/char/assassin-mage-viking-free-pixel-art-game-heroes/PNG/Knight`
+- Knight: `../assets/char/FreeKnight_v1/Colour1/NoOutline/120x80_PNGSheets`
 - Mossy tiles: `../assets/tiles/Mossy Tileset`
 - Slimes: `../assets/monster/Slimes`
 
@@ -81,6 +81,8 @@ Implemented first because it blocks every later gameplay feature:
 - Health pools with deterministic invulnerability-frame rejection.
 - Deterministic hit-pause timer for impact freeze frames.
 - Deterministic hit-stun timer for post-hit action lock.
+- Metadata-driven animation clips for sheet-based sprites and image-sequence sprites.
+- Animated sample sprites for player idle/run/jump/fall/attack/hit/death and slime movement.
 - Graybox combat sample with player slash, moving slime patrol, anchored hitbox movement, contact damage, knockback, HP state, hit pause, hit stun, active hitbox debug, slime hurtbox, and reset.
 
 Sprite assets are loaded from `../assets` by default. Override with:
@@ -91,4 +93,4 @@ mvn -f desktop/pom.xml "-Dumbra.assets.root=C:\path\to\assets" org.codehaus.mojo
 
 If sprite files are unavailable, the sample falls back to colored debug rectangles.
 
-Next planned systems are metadata-driven asset import and animation state machine.
+Next planned systems are deeper asset import validation and richer room-to-room transitions.

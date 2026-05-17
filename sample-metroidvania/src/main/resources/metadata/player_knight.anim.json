@@ -1,0 +1,68 @@
+{
+  "id": "player_knight",
+  "clips": [
+    {
+      "id": "idle",
+      "texture_id": "player_idle",
+      "frame_width": 120,
+      "frame_height": 80,
+      "frame_count": 10,
+      "fps": 10,
+      "loop": true
+    },
+    {
+      "id": "run",
+      "texture_id": "player_run",
+      "frame_width": 120,
+      "frame_height": 80,
+      "frame_count": 10,
+      "fps": 14,
+      "loop": true
+    },
+    {
+      "id": "jump",
+      "texture_id": "player_jump",
+      "frame_width": 120,
+      "frame_height": 80,
+      "frame_count": 3,
+      "fps": 10,
+      "loop": false
+    },
+    {
+      "id": "fall",
+      "texture_id": "player_fall",
+      "frame_width": 120,
+      "frame_height": 80,
+      "frame_count": 3,
+      "fps": 10,
+      "loop": true
+    },
+    {
+      "id": "attack",
+      "texture_id": "player_attack",
+      "frame_width": 120,
+      "frame_height": 80,
+      "frame_count": 4,
+      "fps": 18,
+      "loop": false
+    },
+    {
+      "id": "hit",
+      "texture_id": "player_hit",
+      "frame_width": 120,
+      "frame_height": 80,
+      "frame_count": 1,
+      "fps": 8,
+      "loop": false
+    },
+    {
+      "id": "death",
+      "texture_id": "player_death",
+      "frame_width": 120,
+      "frame_height": 80,
+      "frame_count": 10,
+      "fps": 10,
+      "loop": false
+    }
+  ]
+}

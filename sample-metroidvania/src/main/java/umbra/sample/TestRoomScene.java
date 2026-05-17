@@ -7,6 +7,10 @@ import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
 import com.badlogic.gdx.files.FileHandle;
+import umbra.animation.AnimationClipDefinition;
+import umbra.animation.AnimationMetadataLoader;
+import umbra.animation.AnimationPlayer;
+import umbra.animation.AnimationSetDefinition;
 import umbra.combat.AttackDefinition;
 import umbra.combat.AttackPhase;
 import umbra.combat.AttackTimelineDefinition;
@@ -66,9 +70,13 @@ final class TestRoomScene implements Scene {
     private static final DebugColor ATTACK_INACTIVE_COLOR = new DebugColor(0.7f, 0.15f, 0.15f, 0.55f);
     private static final DebugColor WHITE = new DebugColor(1.0f, 1.0f, 1.0f, 1.0f);
     private static final String PLAYER_IDLE_TEXTURE = "player_idle";
-    private static final String SLIME_IDLE_TEXTURE = "slime_green_idle";
-    private static final int PLAYER_SOURCE_WIDTH = 120;
-    private static final int PLAYER_SOURCE_HEIGHT = 80;
+    private static final String PLAYER_RUN_TEXTURE = "player_run";
+    private static final String PLAYER_JUMP_TEXTURE = "player_jump";
+    private static final String PLAYER_FALL_TEXTURE = "player_fall";
+    private static final String PLAYER_ATTACK_TEXTURE = "player_attack";
+    private static final String PLAYER_HIT_TEXTURE = "player_hit";
+    private static final String PLAYER_DEATH_TEXTURE = "player_death";
+    private static final String SLIME_TEXTURE_PREFIX = "slime_green_move_";
 
     private final LibGdxSpriteBatchRenderer spriteRenderer;
     private final LibGdxDebugShapeRenderer debugRenderer;
@@ -77,6 +85,10 @@ final class TestRoomScene implements Scene {
     private final EngineConfig config;
     private final RoomDefinition room;
     private final CollisionGrid grid;
+    private final AnimationSetDefinition playerAnimationSet;
+    private final AnimationSetDefinition slimeAnimationSet;
+    private final AnimationPlayer playerAnimator = new AnimationPlayer();
+    private final AnimationPlayer slimeAnimator = new AnimationPlayer();
     private final KinematicBody player;
     private final PlayerController controller;
     private final KinematicImpulseConfig playerImpulseConfig;
@@ -119,6 +131,8 @@ final class TestRoomScene implements Scene {
         this.debugRenderer = new LibGdxDebugShapeRenderer(shapes);
         this.camera = camera;
         this.config = config;
+        this.playerAnimationSet = loadAnimationSet("/metadata/player_knight.anim.json");
+        this.slimeAnimationSet = loadAnimationSet("/metadata/slime_green.anim.json");
         loadExternalSprites();
         this.room = loadRoom();
         this.grid = createGrid(room);
@@ -141,6 +155,8 @@ final class TestRoomScene implements Scene {
                 createdSlimePatrolConfig.maxFallSpeedPixelsPerSecond()
         );
         this.slimeController = new PatrolController(createdSlimePatrolConfig, -1);
+        this.playerAnimator.play(playerAnimationSet.clip("idle"));
+        this.slimeAnimator.play(slimeAnimationSet.clip("move"));
     }
 
     @Override
@@ -190,6 +206,8 @@ final class TestRoomScene implements Scene {
             slimeHitStunTimer.reset();
             currentAttackHitbox = null;
             attackTimeline.reset();
+            playerAnimator.restart(playerAnimationSet.clip("idle"));
+            slimeAnimator.restart(slimeAnimationSet.clip("move"));
         }
 
         if (Gdx.input.isKeyJustPressed(Input.Keys.J)
@@ -211,6 +229,7 @@ final class TestRoomScene implements Scene {
             updateSlimeMovement(deltaSeconds);
         }
         updateCombat(deltaSeconds);
+        updateAnimations(deltaSeconds);
         clampCameraToRoom();
     }
 
@@ -308,6 +327,17 @@ final class TestRoomScene implements Scene {
         }
     }
 
+    private AnimationSetDefinition loadAnimationSet(String resourcePath) {
+        try (InputStreamReader reader = new InputStreamReader(
+                Objects.requireNonNull(TestRoomScene.class.getResourceAsStream(resourcePath)),
+                StandardCharsets.UTF_8
+        )) {
+            return new AnimationMetadataLoader().load(reader);
+        } catch (IOException exception) {
+            throw new IllegalStateException("failed to close animation resource: " + resourcePath, exception);
+        }
+    }
+
     private void updatePlayerHitStun(float deltaSeconds) {
         MovementResult result = playerKnockbackMover.update(
                 player,
@@ -349,6 +379,34 @@ final class TestRoomScene implements Scene {
         }
     }
 
+    private void updateAnimations(float deltaSeconds) {
+        playerAnimator.play(resolvePlayerClip());
+        playerAnimator.update(deltaSeconds);
+
+        if (!slimeHealth.defeated()) {
+            slimeAnimator.play(slimeAnimationSet.clip("move"));
+            slimeAnimator.update(deltaSeconds);
+        }
+    }
+
+    private AnimationClipDefinition resolvePlayerClip() {
+        if (playerHealth.defeated()) {
+            return playerAnimationSet.clip("death");
+        }
+        if (playerHitStunTimer.stunned()) {
+            return playerAnimationSet.clip("hit");
+        }
+        if (!attackTimeline.acceptingNewAttack()) {
+            return playerAnimationSet.clip("attack");
+        }
+        return switch (state) {
+            case IDLE -> playerAnimationSet.clip("idle");
+            case RUN -> playerAnimationSet.clip("run");
+            case JUMP -> playerAnimationSet.clip("jump");
+            case FALL -> playerAnimationSet.clip("fall");
+        };
+    }
+
     private void clampCameraToRoom() {
         float roomWidth = grid.widthTiles() * grid.tileSize();
         float roomHeight = grid.heightTiles() * grid.tileSize();
@@ -367,18 +425,21 @@ final class TestRoomScene implements Scene {
     }
 
     private void drawPlayer() {
-        if (spriteRenderer.hasTexture(PLAYER_IDLE_TEXTURE)) {
+        AnimationClipDefinition clip = playerAnimator.clip();
+        int frameIndex = playerAnimator.frameIndex();
+        String textureId = clip == null ? null : clip.textureIdForFrame(frameIndex);
+        if (textureId != null && spriteRenderer.hasTexture(textureId)) {
             SpriteDrawList sprites = new SpriteDrawList();
             sprites.add(new SpriteDrawCommand(
-                    PLAYER_IDLE_TEXTURE,
-                    0,
-                    0,
-                    PLAYER_SOURCE_WIDTH,
-                    PLAYER_SOURCE_HEIGHT,
+                    textureId,
+                    clip.sourceXForFrame(frameIndex),
+                    clip.sourceYForFrame(frameIndex),
+                    clip.frameWidth(),
+                    clip.frameHeight(),
                     player.x() - 51.0f,
                     player.y() - 30.0f,
-                    PLAYER_SOURCE_WIDTH,
-                    PLAYER_SOURCE_HEIGHT,
+                    clip.frameWidth(),
+                    clip.frameHeight(),
                     !facingRight,
                     false,
                     playerSpriteTint()
@@ -400,16 +461,19 @@ final class TestRoomScene implements Scene {
     }
 
     private void drawEnemy() {
-        if (!slimeHealth.defeated() && spriteRenderer.hasTexture(SLIME_IDLE_TEXTURE)) {
+        AnimationClipDefinition clip = slimeAnimator.clip();
+        int frameIndex = slimeAnimator.frameIndex();
+        String textureId = clip == null ? null : clip.textureIdForFrame(frameIndex);
+        if (!slimeHealth.defeated() && textureId != null && spriteRenderer.hasTexture(textureId)) {
             float drawWidth = 56.0f;
             float drawHeight = 38.0f;
             SpriteDrawList sprites = new SpriteDrawList();
             sprites.add(new SpriteDrawCommand(
-                    SLIME_IDLE_TEXTURE,
-                    0,
-                    0,
-                    spriteRenderer.textureWidth(SLIME_IDLE_TEXTURE),
-                    spriteRenderer.textureHeight(SLIME_IDLE_TEXTURE),
+                    textureId,
+                    clip.sourceXForFrame(frameIndex),
+                    clip.sourceYForFrame(frameIndex),
+                    clip.frameWidth(),
+                    clip.frameHeight(),
                     slime.x() + slime.width() * 0.5f - drawWidth * 0.5f,
                     slime.y() - 8.0f,
                     drawWidth,
@@ -480,12 +544,33 @@ final class TestRoomScene implements Scene {
                 "120x80_PNGSheets",
                 "_Idle.png"
         )));
-        registerTextureIfPresent(SLIME_IDLE_TEXTURE, assetRoot.resolve(Path.of(
-                "monster",
-                "Slimes",
-                "SlimeGreen",
-                "SlimeBasic_00000.png"
-        )));
+        registerTextureIfPresent(PLAYER_RUN_TEXTURE, playerSheetPath(assetRoot, "_Run.png"));
+        registerTextureIfPresent(PLAYER_JUMP_TEXTURE, playerSheetPath(assetRoot, "_Jump.png"));
+        registerTextureIfPresent(PLAYER_FALL_TEXTURE, playerSheetPath(assetRoot, "_Fall.png"));
+        registerTextureIfPresent(PLAYER_ATTACK_TEXTURE, playerSheetPath(assetRoot, "_Attack.png"));
+        registerTextureIfPresent(PLAYER_HIT_TEXTURE, playerSheetPath(assetRoot, "_Hit.png"));
+        registerTextureIfPresent(PLAYER_DEATH_TEXTURE, playerSheetPath(assetRoot, "_Death.png"));
+
+        for (int frame = 0; frame < 30; frame++) {
+            String frameId = SLIME_TEXTURE_PREFIX + String.format("%05d", frame);
+            registerTextureIfPresent(frameId, assetRoot.resolve(Path.of(
+                    "monster",
+                    "Slimes",
+                    "SlimeGreen",
+                    "SlimeBasic_" + String.format("%05d", frame) + ".png"
+            )));
+        }
+    }
+
+    private Path playerSheetPath(Path assetRoot, String fileName) {
+        return assetRoot.resolve(Path.of(
+                "char",
+                "FreeKnight_v1",
+                "Colour1",
+                "NoOutline",
+                "120x80_PNGSheets",
+                fileName
+        ));
     }
 
     private void registerTextureIfPresent(String textureId, Path texturePath) {

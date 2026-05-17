@@ -1,0 +1,45 @@
+{
+  "id": "slime_green",
+  "clips": [
+    {
+      "id": "move",
+      "texture_ids": [
+        "slime_green_move_00000",
+        "slime_green_move_00001",
+        "slime_green_move_00002",
+        "slime_green_move_00003",
+        "slime_green_move_00004",
+        "slime_green_move_00005",
+        "slime_green_move_00006",
+        "slime_green_move_00007",
+        "slime_green_move_00008",
+        "slime_green_move_00009",
+        "slime_green_move_00010",
+        "slime_green_move_00011",
+        "slime_green_move_00012",
+        "slime_green_move_00013",
+        "slime_green_move_00014",
+        "slime_green_move_00015",
+        "slime_green_move_00016",
+        "slime_green_move_00017",
+        "slime_green_move_00018",
+        "slime_green_move_00019",
+        "slime_green_move_00020",
+        "slime_green_move_00021",
+        "slime_green_move_00022",
+        "slime_green_move_00023",
+        "slime_green_move_00024",
+        "slime_green_move_00025",
+        "slime_green_move_00026",
+        "slime_green_move_00027",
+        "slime_green_move_00028",
+        "slime_green_move_00029"
+      ],
+      "frame_width": 376,
+      "frame_height": 256,
+      "frame_count": 30,
+      "fps": 12,
+      "loop": true
+    }
+  ]
+}
