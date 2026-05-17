@@ -58,7 +58,7 @@ Do not commit local absolute paths, credentials, generated build folders, IDE st
 - `engine-render`: debug draw command model and LibGDX shape renderer adapter.
 - `engine-physics2d`: tile collision, kinematic player movement, simple enemy patrol movement, and impulse/knockback movement.
 - `engine-assets`: asset path validation.
-- `engine-room`: JSON room model loading and validation.
+- `engine-room`: JSON room model loading and v1 contract validation.
 - `engine-combat`: hitbox/hurtbox definitions and overlap resolution, team filtering, attack timing, damage events, health, invulnerability frames, hit pause, and hit stun.
 - `sample-metroidvania`: LibGDX graybox room proving movement and collision.
 - `desktop`: LWJGL3 launcher.
@@ -75,6 +75,7 @@ Implemented first because it blocks every later gameplay feature:
 - Kinematic patrol controller for ground enemies with wall and ledge reversal.
 - Kinematic impulse mover for knockback and hit-stun movement through tile collision.
 - Data-loaded debug-visible graybox room.
+- Room validation for 32 px tile size, solid tiles, player spawns, doors, isolated rooms, and camera zones.
 - Facing-aware hitbox definitions and active hitbox versus enabled hurtbox damage events with optional team filtering.
 - Attack timeline player for startup, active, recovery, and finished windows.
 - Health pools with deterministic invulnerability-frame rejection.

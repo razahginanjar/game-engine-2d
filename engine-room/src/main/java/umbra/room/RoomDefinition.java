@@ -12,14 +12,17 @@ public record RoomDefinition(
         int widthTiles,
         int heightTiles,
         int tileSize,
+        boolean isolated,
         List<TileCell> solidTiles,
         List<SpawnPoint> spawns,
-        List<DoorDefinition> doors
+        List<DoorDefinition> doors,
+        List<CameraZoneDefinition> cameraZones
 ) {
     public RoomDefinition {
         solidTiles = List.copyOf(solidTiles);
         spawns = List.copyOf(spawns);
         doors = List.copyOf(doors);
+        cameraZones = List.copyOf(cameraZones);
     }
 
     public record TileCell(int x, int y) {
@@ -29,5 +32,8 @@ public record RoomDefinition(
     }
 
     public record DoorDefinition(String id, float x, float y, float width, float height, String targetRoom, String targetSpawn) {
+    }
+
+    public record CameraZoneDefinition(String id, float x, float y, float width, float height) {
     }
 }

@@ -27,5 +27,8 @@
   ],
   "doors": [
     { "id": "right_exit", "x": 1248, "y": 32, "w": 24, "h": 96, "target_room": "self", "target_spawn": "entry_left" }
+  ],
+  "camera_zones": [
+    { "id": "main", "x": 0, "y": 0, "w": 1280, "h": 704 }
   ]
 }
