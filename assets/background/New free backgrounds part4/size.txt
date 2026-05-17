@@ -1,0 +1,2 @@
+Resolution: 576×324;
+Format:  PNG.
