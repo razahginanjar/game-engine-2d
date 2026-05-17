@@ -10,7 +10,9 @@ import umbra.combat.AttackPhase;
 import umbra.combat.AttackTimelineDefinition;
 import umbra.combat.AttackTimelinePlayer;
 import umbra.combat.CombatResolver;
+import umbra.combat.DamageApplication;
 import umbra.combat.DamageEvent;
+import umbra.combat.HealthPool;
 import umbra.combat.HitboxInstance;
 import umbra.combat.HurtboxInstance;
 import umbra.core.EngineConfig;
@@ -50,9 +52,18 @@ final class TestRoomScene implements Scene {
             0.10f,
             0.18f
     );
+    private final AttackDefinition slimeContactAttack = new AttackDefinition(
+            "slime_contact",
+            1,
+            120.0f,
+            150.0f,
+            0.0f,
+            "contact"
+    );
     private final Aabb slimeHurtbox;
+    private final HealthPool playerHealth = new HealthPool(5, 0.75f);
+    private final HealthPool slimeHealth = new HealthPool(3, 0.0f);
     private HitboxInstance currentAttackHitbox;
-    private int slimeHealth = 3;
     private boolean facingRight = true;
     private boolean previousJumpDown;
     private PlayerState state = PlayerState.IDLE;
@@ -96,16 +107,19 @@ final class TestRoomScene implements Scene {
             player.setPosition(playerSpawn.x(), playerSpawn.y());
             player.setVelocityX(0.0f);
             player.setVelocityY(0.0f);
-            slimeHealth = 3;
+            playerHealth.reset();
+            slimeHealth.reset();
             currentAttackHitbox = null;
             attackTimeline.reset();
         }
 
-        if (Gdx.input.isKeyJustPressed(Input.Keys.J) && attackTimeline.acceptingNewAttack()) {
+        if (Gdx.input.isKeyJustPressed(Input.Keys.J) && attackTimeline.acceptingNewAttack() && !playerHealth.defeated()) {
             attackTimeline.start(slashTimeline);
             currentAttackHitbox = createPlayerSlashHitbox();
         }
-        state = controller.update(input, player, grid, deltaSeconds);
+        if (!playerHealth.defeated()) {
+            state = controller.update(input, player, grid, deltaSeconds);
+        }
         updateCombat(deltaSeconds);
         clampCameraToRoom();
     }
@@ -157,24 +171,39 @@ final class TestRoomScene implements Scene {
     }
 
     private void updateCombat(float deltaSeconds) {
+        playerHealth.update(deltaSeconds);
+        slimeHealth.update(deltaSeconds);
         attackTimeline.update(deltaSeconds);
-        if (currentAttackHitbox == null) {
-            return;
-        }
 
-        currentAttackHitbox.setActive(attackTimeline.hitboxActive());
-        if (slimeHealth > 0) {
-            List<DamageEvent> damageEvents = combatResolver.resolve(
-                    List.of(currentAttackHitbox),
-                    List.of(new HurtboxInstance(SLIME_ENTITY_ID, slimeHurtbox, true))
-            );
-            for (DamageEvent event : damageEvents) {
-                slimeHealth = Math.max(0, slimeHealth - event.damage());
+        if (currentAttackHitbox != null) {
+            currentAttackHitbox.setActive(attackTimeline.hitboxActive());
+            if (!slimeHealth.defeated()) {
+                List<DamageEvent> damageEvents = combatResolver.resolve(
+                        List.of(currentAttackHitbox),
+                        List.of(new HurtboxInstance(SLIME_ENTITY_ID, slimeHurtbox, true))
+                );
+                for (DamageEvent event : damageEvents) {
+                    slimeHealth.apply(event);
+                }
+            }
+
+            if (attackTimeline.phase() == AttackPhase.FINISHED) {
+                currentAttackHitbox = null;
             }
         }
 
-        if (attackTimeline.phase() == AttackPhase.FINISHED) {
-            currentAttackHitbox = null;
+        if (!playerHealth.defeated() && !slimeHealth.defeated()) {
+            List<DamageEvent> damageEvents = combatResolver.resolve(
+                    List.of(new HitboxInstance(SLIME_ENTITY_ID, slimeContactAttack, slimeHurtbox, true)),
+                    List.of(new HurtboxInstance(PLAYER_ENTITY_ID, player.bounds(), true))
+            );
+            for (DamageEvent event : damageEvents) {
+                DamageApplication application = playerHealth.apply(event);
+                if (application.applied()) {
+                    player.setVelocityX(event.knockbackX());
+                    player.setVelocityY(event.knockbackY());
+                }
+            }
         }
     }
 
@@ -225,7 +254,7 @@ final class TestRoomScene implements Scene {
 
     private void drawEnemy() {
         shapes.begin(ShapeRenderer.ShapeType.Filled);
-        if (slimeHealth > 0) {
+        if (!slimeHealth.defeated()) {
             shapes.setColor(0.30f, 0.85f, 0.32f, 1.0f);
         } else {
             shapes.setColor(0.15f, 0.18f, 0.15f, 1.0f);
@@ -252,6 +281,12 @@ final class TestRoomScene implements Scene {
     }
 
     private Color playerColor() {
+        if (playerHealth.defeated()) {
+            return Color.DARK_GRAY;
+        }
+        if (playerHealth.invulnerable()) {
+            return Color.MAGENTA;
+        }
         return switch (state) {
             case IDLE -> Color.SKY;
             case RUN -> Color.CYAN;
@@ -264,7 +299,8 @@ final class TestRoomScene implements Scene {
         Gdx.graphics.setTitle("Umbra2D | " + room.roomId()
                 + " | " + state
                 + " | attack=" + attackTimeline.phase()
-                + " | slimeHP=" + slimeHealth
+                + " | playerHP=" + playerHealth.currentHealth()
+                + " | slimeHP=" + slimeHealth.currentHealth()
                 + " | A/D move, Space jump, J attack, R reset, Esc quit");
     }
 }

@@ -37,7 +37,7 @@ Controls:
 - `A/D` or arrow keys: move
 - `Space` or `Up`: jump
 - `J`: attack
-- `R`: reset player
+- `R`: reset player, enemy, and combat state
 - `Esc`: quit
 
 ## Asset Policy
@@ -58,7 +58,7 @@ Do not commit local absolute paths, credentials, generated build folders, IDE st
 - `engine-physics2d`: tile collision and kinematic player movement.
 - `engine-assets`: asset path validation.
 - `engine-room`: JSON room model loading and validation.
-- `engine-combat`: hitbox/hurtbox overlap resolution, attack timing, and damage events.
+- `engine-combat`: hitbox/hurtbox overlap resolution, attack timing, damage events, health, and invulnerability frames.
 - `sample-metroidvania`: LibGDX graybox room proving movement and collision.
 - `desktop`: LWJGL3 launcher.
 
@@ -73,6 +73,7 @@ Implemented first because it blocks every later gameplay feature:
 - Data-loaded debug-visible graybox room.
 - Combat resolver for active hitbox versus enabled hurtbox damage events.
 - Attack timeline player for startup, active, recovery, and finished windows.
-- Graybox combat sample with player slash, active hitbox debug, slime hurtbox, and reset.
+- Health pools with deterministic invulnerability-frame rejection.
+- Graybox combat sample with player slash, contact damage, knockback, HP state, active hitbox debug, slime hurtbox, and reset.
 
 Next planned systems are metadata-driven asset import and animation state machine.
