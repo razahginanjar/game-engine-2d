@@ -60,5 +60,6 @@ Implemented first because it blocks every later gameplay feature:
 - Kinematic player controller with acceleration, gravity, jump cut, coyote time, and jump buffer.
 - Data-loaded debug-visible graybox room.
 - Player animation metadata for required MVP clips: idle, run, jump, fall, dash, attack, hit, death.
+- Deterministic animation clip playback for looped and one-shot clips.
 
-Next planned systems are animation playback/state machine and combat hitbox/hurtbox timing.
+Next planned systems are player animation rendering/state selection and combat hitbox/hurtbox timing.
