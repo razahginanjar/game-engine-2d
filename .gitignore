@@ -1,0 +1,17 @@
+target/
+.idea/
+.vscode/
+*.iml
+*.log
+logs/
+diagnostics.zip
+*.tmp
+*.bak
+.DS_Store
+Thumbs.db
+
+# Raw production/source assets stay outside this repo until cleaned and licensed.
+assets/
+assets_clean/
+assets_runtime/
+assets_source/
