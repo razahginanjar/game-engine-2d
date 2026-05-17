@@ -5,8 +5,17 @@ import com.badlogic.gdx.Input;
 import com.badlogic.gdx.graphics.Camera;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
+import umbra.combat.AttackDefinition;
+import umbra.combat.AttackPhase;
+import umbra.combat.AttackTimelineDefinition;
+import umbra.combat.AttackTimelinePlayer;
+import umbra.combat.CombatResolver;
+import umbra.combat.DamageEvent;
+import umbra.combat.HitboxInstance;
+import umbra.combat.HurtboxInstance;
 import umbra.core.EngineConfig;
 import umbra.core.Scene;
+import umbra.physics.Aabb;
 import umbra.physics.CollisionGrid;
 import umbra.physics.KinematicBody;
 import umbra.physics.player.PlayerController;
@@ -19,9 +28,13 @@ import umbra.room.RoomLoader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 import java.util.Objects;
 
 final class TestRoomScene implements Scene {
+    private static final int PLAYER_ENTITY_ID = 1;
+    private static final int SLIME_ENTITY_ID = 2;
+
     private final ShapeRenderer shapes;
     private final Camera camera;
     private final EngineConfig config;
@@ -29,6 +42,18 @@ final class TestRoomScene implements Scene {
     private final CollisionGrid grid;
     private final KinematicBody player;
     private final PlayerController controller;
+    private final CombatResolver combatResolver = new CombatResolver();
+    private final AttackTimelinePlayer attackTimeline = new AttackTimelinePlayer();
+    private final AttackTimelineDefinition slashTimeline = new AttackTimelineDefinition(
+            new AttackDefinition("player_slash_01", 1, 160.0f, 40.0f, 0.045f, "slash"),
+            0.06f,
+            0.10f,
+            0.18f
+    );
+    private final Aabb slimeHurtbox;
+    private HitboxInstance currentAttackHitbox;
+    private int slimeHealth = 3;
+    private boolean facingRight = true;
     private boolean previousJumpDown;
     private PlayerState state = PlayerState.IDLE;
 
@@ -44,6 +69,7 @@ final class TestRoomScene implements Scene {
                 .orElseThrow();
         this.player = new KinematicBody(playerSpawn.x(), playerSpawn.y(), 18.0f, 38.0f);
         this.controller = new PlayerController(PlayerControllerConfig.metroidvaniaDefaults());
+        this.slimeHurtbox = createSlimeHurtbox();
     }
 
     @Override
@@ -55,6 +81,11 @@ final class TestRoomScene implements Scene {
                 jumpDown && !previousJumpDown,
                 jumpDown
         );
+        if (input.left() && !input.right()) {
+            facingRight = false;
+        } else if (input.right() && !input.left()) {
+            facingRight = true;
+        }
         previousJumpDown = jumpDown;
 
         if (Gdx.input.isKeyJustPressed(Input.Keys.R)) {
@@ -65,16 +96,26 @@ final class TestRoomScene implements Scene {
             player.setPosition(playerSpawn.x(), playerSpawn.y());
             player.setVelocityX(0.0f);
             player.setVelocityY(0.0f);
+            slimeHealth = 3;
+            currentAttackHitbox = null;
+            attackTimeline.reset();
         }
 
+        if (Gdx.input.isKeyJustPressed(Input.Keys.J) && attackTimeline.acceptingNewAttack()) {
+            attackTimeline.start(slashTimeline);
+            currentAttackHitbox = createPlayerSlashHitbox();
+        }
         state = controller.update(input, player, grid, deltaSeconds);
+        updateCombat(deltaSeconds);
         clampCameraToRoom();
     }
 
     @Override
     public void render() {
         drawRoom();
+        drawEnemy();
         drawPlayer();
+        drawCombatDebug();
         drawHud();
     }
 
@@ -95,6 +136,46 @@ final class TestRoomScene implements Scene {
             createdGrid.setSolid(tile.x(), tile.y(), true);
         }
         return createdGrid;
+    }
+
+    private Aabb createSlimeHurtbox() {
+        RoomDefinition.SpawnPoint slimeSpawn = room.spawns().stream()
+                .filter(spawn -> spawn.id().equals("slime_a"))
+                .findFirst()
+                .orElse(new RoomDefinition.SpawnPoint("slime_a", "enemy_spawn", 520.0f, 64.0f));
+        return new Aabb(slimeSpawn.x(), slimeSpawn.y(), 28.0f, 18.0f);
+    }
+
+    private HitboxInstance createPlayerSlashHitbox() {
+        float hitboxX = facingRight ? player.x() + player.width() : player.x() - 34.0f;
+        return new HitboxInstance(
+                PLAYER_ENTITY_ID,
+                slashTimeline.attack(),
+                new Aabb(hitboxX, player.y() + 5.0f, 34.0f, 28.0f),
+                false
+        );
+    }
+
+    private void updateCombat(float deltaSeconds) {
+        attackTimeline.update(deltaSeconds);
+        if (currentAttackHitbox == null) {
+            return;
+        }
+
+        currentAttackHitbox.setActive(attackTimeline.hitboxActive());
+        if (slimeHealth > 0) {
+            List<DamageEvent> damageEvents = combatResolver.resolve(
+                    List.of(currentAttackHitbox),
+                    List.of(new HurtboxInstance(SLIME_ENTITY_ID, slimeHurtbox, true))
+            );
+            for (DamageEvent event : damageEvents) {
+                slimeHealth = Math.max(0, slimeHealth - event.damage());
+            }
+        }
+
+        if (attackTimeline.phase() == AttackPhase.FINISHED) {
+            currentAttackHitbox = null;
+        }
     }
 
     private void clampCameraToRoom() {
@@ -142,6 +223,34 @@ final class TestRoomScene implements Scene {
         shapes.end();
     }
 
+    private void drawEnemy() {
+        shapes.begin(ShapeRenderer.ShapeType.Filled);
+        if (slimeHealth > 0) {
+            shapes.setColor(0.30f, 0.85f, 0.32f, 1.0f);
+        } else {
+            shapes.setColor(0.15f, 0.18f, 0.15f, 1.0f);
+        }
+        shapes.rect(slimeHurtbox.x(), slimeHurtbox.y(), slimeHurtbox.width(), slimeHurtbox.height());
+        shapes.end();
+    }
+
+    private void drawCombatDebug() {
+        shapes.begin(ShapeRenderer.ShapeType.Line);
+        shapes.setColor(Color.YELLOW);
+        shapes.rect(slimeHurtbox.x(), slimeHurtbox.y(), slimeHurtbox.width(), slimeHurtbox.height());
+
+        if (currentAttackHitbox != null) {
+            if (currentAttackHitbox.active()) {
+                shapes.setColor(Color.RED);
+            } else {
+                shapes.setColor(0.7f, 0.15f, 0.15f, 0.55f);
+            }
+            Aabb hitbox = currentAttackHitbox.bounds();
+            shapes.rect(hitbox.x(), hitbox.y(), hitbox.width(), hitbox.height());
+        }
+        shapes.end();
+    }
+
     private Color playerColor() {
         return switch (state) {
             case IDLE -> Color.SKY;
@@ -152,6 +261,10 @@ final class TestRoomScene implements Scene {
     }
 
     private void drawHud() {
-        Gdx.graphics.setTitle("Umbra2D | " + room.roomId() + " | " + state + " | A/D move, Space jump, R reset, Esc quit");
+        Gdx.graphics.setTitle("Umbra2D | " + room.roomId()
+                + " | " + state
+                + " | attack=" + attackTimeline.phase()
+                + " | slimeHP=" + slimeHealth
+                + " | A/D move, Space jump, J attack, R reset, Esc quit");
     }
 }

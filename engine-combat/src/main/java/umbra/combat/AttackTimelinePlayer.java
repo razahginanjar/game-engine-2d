@@ -15,6 +15,12 @@ public final class AttackTimelinePlayer {
         this.phase = timeline.startupSeconds() > 0.0f ? AttackPhase.STARTUP : AttackPhase.ACTIVE;
     }
 
+    public void reset() {
+        timeline = null;
+        elapsedSeconds = 0.0f;
+        phase = AttackPhase.IDLE;
+    }
+
     public void update(float deltaSeconds) {
         if (deltaSeconds < 0.0f) {
             throw new IllegalArgumentException("deltaSeconds must not be negative");

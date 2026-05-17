@@ -51,6 +51,19 @@ final class AttackTimelinePlayerTest {
     }
 
     @Test
+    void resetReturnsPlayerToIdle() {
+        AttackTimelinePlayer player = new AttackTimelinePlayer();
+        player.start(timeline(0.0f, 0.10f, 0.0f));
+        player.update(0.05f);
+
+        player.reset();
+
+        assertEquals(AttackPhase.IDLE, player.phase());
+        assertFalse(player.hitboxActive());
+        assertTrue(player.acceptingNewAttack());
+    }
+
+    @Test
     void rejectsNegativeDelta() {
         AttackTimelinePlayer player = new AttackTimelinePlayer();
         player.start(timeline(0.0f, 0.10f, 0.0f));
