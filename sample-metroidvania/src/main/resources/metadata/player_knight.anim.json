@@ -1,0 +1,66 @@
+{
+  "asset_id": "player_knight",
+  "frame_width": 120,
+  "frame_height": 80,
+  "pivot": "bottom_center",
+  "collision_box": { "x": 51, "y": 30, "w": 18, "h": 38 },
+  "hurtbox": { "x": 49, "y": 25, "w": 22, "h": 43 },
+  "clips": [
+    {
+      "id": "idle",
+      "sheet": "char/FreeKnight_v1/Colour1/NoOutline/120x80_PNGSheets/_Idle.png",
+      "frames": 10,
+      "fps": 12,
+      "loop": true
+    },
+    {
+      "id": "run",
+      "sheet": "char/FreeKnight_v1/Colour1/NoOutline/120x80_PNGSheets/_Run.png",
+      "frames": 10,
+      "fps": 12,
+      "loop": true
+    },
+    {
+      "id": "jump",
+      "sheet": "char/FreeKnight_v1/Colour1/NoOutline/120x80_PNGSheets/_Jump.png",
+      "frames": 3,
+      "fps": 12,
+      "loop": false
+    },
+    {
+      "id": "fall",
+      "sheet": "char/FreeKnight_v1/Colour1/NoOutline/120x80_PNGSheets/_Fall.png",
+      "frames": 3,
+      "fps": 12,
+      "loop": false
+    },
+    {
+      "id": "dash",
+      "sheet": "char/FreeKnight_v1/Colour1/NoOutline/120x80_PNGSheets/_Dash.png",
+      "frames": 2,
+      "fps": 12,
+      "loop": false
+    },
+    {
+      "id": "attack",
+      "sheet": "char/FreeKnight_v1/Colour1/NoOutline/120x80_PNGSheets/_Attack.png",
+      "frames": 4,
+      "fps": 12,
+      "loop": false
+    },
+    {
+      "id": "hit",
+      "sheet": "char/FreeKnight_v1/Colour1/NoOutline/120x80_PNGSheets/_Hit.png",
+      "frames": 1,
+      "fps": 12,
+      "loop": false
+    },
+    {
+      "id": "death",
+      "sheet": "char/FreeKnight_v1/Colour1/NoOutline/120x80_PNGSheets/_Death.png",
+      "frames": 10,
+      "fps": 12,
+      "loop": false
+    }
+  ]
+}

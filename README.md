@@ -34,7 +34,7 @@ Raw art assets live outside this implementation repo in `../assets`. The reposit
 
 Initial source asset mapping:
 
-- Knight: `../assets/char/assassin-mage-viking-free-pixel-art-game-heroes/PNG/Knight`
+- Player knight sheets: `../assets/char/FreeKnight_v1/Colour1/NoOutline/120x80_PNGSheets`
 - Mossy tiles: `../assets/tiles/Mossy Tileset`
 - Slimes: `../assets/monster/Slimes`
 
@@ -46,6 +46,7 @@ Do not commit local absolute paths, credentials, generated build folders, IDE st
 - `engine-physics2d`: tile collision and kinematic player movement.
 - `engine-assets`: asset path validation.
 - `engine-room`: JSON room model loading and validation.
+- `engine-animation`: metadata-driven sprite sheet animation validation.
 - `sample-metroidvania`: LibGDX graybox room proving movement and collision.
 - `desktop`: LWJGL3 launcher.
 
@@ -58,5 +59,6 @@ Implemented first because it blocks every later gameplay feature:
 - 32 px tile collision grid.
 - Kinematic player controller with acceleration, gravity, jump cut, coyote time, and jump buffer.
 - Data-loaded debug-visible graybox room.
+- Player animation metadata for required MVP clips: idle, run, jump, fall, dash, attack, hit, death.
 
-Next planned systems are metadata-driven asset import, animation state machine, and combat hitbox/hurtbox timing.
+Next planned systems are animation playback/state machine and combat hitbox/hurtbox timing.
