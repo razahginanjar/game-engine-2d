@@ -10,6 +10,7 @@ import umbra.combat.AttackPhase;
 import umbra.combat.AttackTimelineDefinition;
 import umbra.combat.AttackTimelinePlayer;
 import umbra.combat.CombatResolver;
+import umbra.combat.CombatTeam;
 import umbra.combat.DamageApplication;
 import umbra.combat.DamageEvent;
 import umbra.combat.HealthPool;
@@ -173,6 +174,7 @@ final class TestRoomScene implements Scene {
         float hitboxX = facingRight ? player.x() + player.width() : player.x() - 34.0f;
         return new HitboxInstance(
                 PLAYER_ENTITY_ID,
+                CombatTeam.PLAYER,
                 slashTimeline.attack(),
                 new Aabb(hitboxX, player.y() + 5.0f, 34.0f, 28.0f),
                 false
@@ -189,7 +191,7 @@ final class TestRoomScene implements Scene {
             if (!slimeHealth.defeated()) {
                 List<DamageEvent> damageEvents = combatResolver.resolve(
                         List.of(currentAttackHitbox),
-                        List.of(new HurtboxInstance(SLIME_ENTITY_ID, slimeHurtbox, true))
+                        List.of(new HurtboxInstance(SLIME_ENTITY_ID, CombatTeam.ENEMY, slimeHurtbox, true))
                 );
                 for (DamageEvent event : damageEvents) {
                     DamageApplication application = slimeHealth.apply(event);
@@ -206,8 +208,8 @@ final class TestRoomScene implements Scene {
 
         if (!playerHealth.defeated() && !slimeHealth.defeated()) {
             List<DamageEvent> damageEvents = combatResolver.resolve(
-                    List.of(new HitboxInstance(SLIME_ENTITY_ID, slimeContactAttack, slimeHurtbox, true)),
-                    List.of(new HurtboxInstance(PLAYER_ENTITY_ID, player.bounds(), true))
+                    List.of(new HitboxInstance(SLIME_ENTITY_ID, CombatTeam.ENEMY, slimeContactAttack, slimeHurtbox, true)),
+                    List.of(new HurtboxInstance(PLAYER_ENTITY_ID, CombatTeam.PLAYER, player.bounds(), true))
             );
             for (DamageEvent event : damageEvents) {
                 DamageApplication application = playerHealth.apply(event);

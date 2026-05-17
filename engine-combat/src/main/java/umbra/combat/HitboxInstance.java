@@ -3,6 +3,7 @@ package umbra.combat;
 import umbra.physics.Aabb;
 
 import java.util.HashSet;
+import java.util.Objects;
 import java.util.Set;
 
 /**
@@ -10,20 +11,30 @@ import java.util.Set;
  */
 public final class HitboxInstance {
     private final int ownerEntityId;
+    private final CombatTeam team;
     private final AttackDefinition attack;
     private final Aabb bounds;
     private final Set<Integer> alreadyHitEntityIds = new HashSet<>();
     private boolean active;
 
     public HitboxInstance(int ownerEntityId, AttackDefinition attack, Aabb bounds, boolean active) {
+        this(ownerEntityId, CombatTeam.NEUTRAL, attack, bounds, active);
+    }
+
+    public HitboxInstance(int ownerEntityId, CombatTeam team, AttackDefinition attack, Aabb bounds, boolean active) {
         this.ownerEntityId = ownerEntityId;
-        this.attack = attack;
-        this.bounds = bounds;
+        this.team = team == null ? CombatTeam.NEUTRAL : team;
+        this.attack = Objects.requireNonNull(attack, "attack must not be null");
+        this.bounds = Objects.requireNonNull(bounds, "bounds must not be null");
         this.active = active;
     }
 
     public int ownerEntityId() {
         return ownerEntityId;
+    }
+
+    public CombatTeam team() {
+        return team;
     }
 
     public AttackDefinition attack() {

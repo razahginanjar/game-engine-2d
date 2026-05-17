@@ -19,6 +19,7 @@ public final class CombatResolver {
             for (HurtboxInstance hurtbox : hurtboxes) {
                 if (!hurtbox.enabled()
                         || hitbox.ownerEntityId() == hurtbox.ownerEntityId()
+                        || sameNonNeutralTeam(hitbox, hurtbox)
                         || hitbox.hasAlreadyHit(hurtbox.ownerEntityId())
                         || !hitbox.bounds().overlaps(hurtbox.bounds())) {
                     continue;
@@ -45,5 +46,9 @@ public final class CombatResolver {
         float hurtboxCenter = hurtbox.bounds().x() + hurtbox.bounds().width() * 0.5f;
         float sign = hurtboxCenter >= hitboxCenter ? 1.0f : -1.0f;
         return hitbox.attack().knockbackX() * sign;
+    }
+
+    private boolean sameNonNeutralTeam(HitboxInstance hitbox, HurtboxInstance hurtbox) {
+        return hitbox.team() != CombatTeam.NEUTRAL && hitbox.team() == hurtbox.team();
     }
 }

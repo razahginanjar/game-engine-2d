@@ -65,6 +65,32 @@ final class CombatResolverTest {
         assertTrue(events.isEmpty());
     }
 
+    @Test
+    void sameNonNeutralTeamCannotDamage() {
+        HitboxInstance hitbox = new HitboxInstance(
+                1,
+                CombatTeam.ENEMY,
+                slash(),
+                new Aabb(10, 10, 30, 20),
+                true
+        );
+        HurtboxInstance hurtbox = new HurtboxInstance(2, CombatTeam.ENEMY, new Aabb(25, 15, 20, 20), true);
+
+        List<DamageEvent> events = new CombatResolver().resolve(List.of(hitbox), List.of(hurtbox));
+
+        assertTrue(events.isEmpty());
+    }
+
+    @Test
+    void neutralHitboxCanDamageNonNeutralHurtbox() {
+        HitboxInstance hitbox = new HitboxInstance(1, slash(), new Aabb(10, 10, 30, 20), true);
+        HurtboxInstance hurtbox = new HurtboxInstance(2, CombatTeam.ENEMY, new Aabb(25, 15, 20, 20), true);
+
+        List<DamageEvent> events = new CombatResolver().resolve(List.of(hitbox), List.of(hurtbox));
+
+        assertEquals(1, events.size());
+    }
+
     private AttackDefinition slash() {
         return new AttackDefinition("player_slash_01", 1, 160.0f, 40.0f, 0.045f, "slash");
     }
