@@ -71,4 +71,17 @@ final class HitboxDefinitionTest {
         assertThrows(IllegalArgumentException.class, () -> new HitboxDefinition(1.0f, 0.0f, 0.0f, 0.0f));
         assertThrows(IllegalArgumentException.class, () -> new HitboxDefinition(1.0f, 1.0f, -0.1f, 0.0f));
     }
+
+    @Test
+    void rejectsNegativeHitStun() {
+        assertThrows(IllegalArgumentException.class, () -> new AttackDefinition(
+                "test",
+                1,
+                0.0f,
+                0.0f,
+                0.0f,
+                -0.1f,
+                "test"
+        ));
+    }
 }

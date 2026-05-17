@@ -34,6 +34,7 @@ public final class CombatResolver {
                         signedKnockbackX(hitbox, hurtbox),
                         attack.knockbackY(),
                         attack.hitPauseSeconds(),
+                        attack.hitStunSeconds(),
                         attack.damageType()
                 ));
             }

@@ -10,8 +10,13 @@ public record AttackDefinition(
         float knockbackX,
         float knockbackY,
         float hitPauseSeconds,
+        float hitStunSeconds,
         String damageType
 ) {
+    public AttackDefinition(String id, int damage, float knockbackX, float knockbackY, float hitPauseSeconds, String damageType) {
+        this(id, damage, knockbackX, knockbackY, hitPauseSeconds, 0.0f, damageType);
+    }
+
     public AttackDefinition {
         if (id == null || id.isBlank()) {
             throw new IllegalArgumentException("attack id must not be blank");
@@ -21,6 +26,9 @@ public record AttackDefinition(
         }
         if (hitPauseSeconds < 0.0f) {
             throw new IllegalArgumentException("hitPauseSeconds must not be negative");
+        }
+        if (hitStunSeconds < 0.0f) {
+            throw new IllegalArgumentException("hitStunSeconds must not be negative");
         }
         if (damageType == null || damageType.isBlank()) {
             damageType = "physical";

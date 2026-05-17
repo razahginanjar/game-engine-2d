@@ -16,6 +16,7 @@ import umbra.combat.DamageEvent;
 import umbra.combat.FacingDirection;
 import umbra.combat.HealthPool;
 import umbra.combat.HitPauseTimer;
+import umbra.combat.HitStunTimer;
 import umbra.combat.HitboxDefinition;
 import umbra.combat.HitboxInstance;
 import umbra.combat.HurtboxInstance;
@@ -24,6 +25,8 @@ import umbra.core.Scene;
 import umbra.physics.Aabb;
 import umbra.physics.CollisionGrid;
 import umbra.physics.KinematicBody;
+import umbra.physics.KinematicMover;
+import umbra.physics.MovementResult;
 import umbra.physics.enemy.PatrolController;
 import umbra.physics.enemy.PatrolControllerConfig;
 import umbra.physics.player.PlayerController;
@@ -49,13 +52,17 @@ final class TestRoomScene implements Scene {
     private final RoomDefinition room;
     private final CollisionGrid grid;
     private final KinematicBody player;
+    private final PlayerControllerConfig playerConfig;
     private final PlayerController controller;
+    private final KinematicMover playerKnockbackMover = new KinematicMover();
     private final KinematicBody slime;
+    private final PatrolControllerConfig slimePatrolConfig;
     private final PatrolController slimeController;
+    private final KinematicMover enemyKnockbackMover = new KinematicMover();
     private final CombatResolver combatResolver = new CombatResolver();
     private final AttackTimelinePlayer attackTimeline = new AttackTimelinePlayer();
     private final AttackTimelineDefinition slashTimeline = new AttackTimelineDefinition(
-            new AttackDefinition("player_slash_01", 1, 160.0f, 40.0f, 0.045f, "slash"),
+            new AttackDefinition("player_slash_01", 1, 160.0f, 40.0f, 0.045f, 0.18f, "slash"),
             0.06f,
             0.10f,
             0.18f
@@ -66,12 +73,15 @@ final class TestRoomScene implements Scene {
             120.0f,
             150.0f,
             0.0f,
+            0.12f,
             "contact"
     );
     private final HitboxDefinition slashHitboxDefinition = new HitboxDefinition(34.0f, 28.0f, 0.0f, 5.0f);
     private final HealthPool playerHealth = new HealthPool(5, 0.75f);
     private final HealthPool slimeHealth = new HealthPool(3, 0.0f);
     private final HitPauseTimer hitPauseTimer = new HitPauseTimer();
+    private final HitStunTimer playerHitStunTimer = new HitStunTimer();
+    private final HitStunTimer slimeHitStunTimer = new HitStunTimer();
     private HitboxInstance currentAttackHitbox;
     private boolean facingRight = true;
     private boolean attackFacingRight = true;
@@ -89,10 +99,12 @@ final class TestRoomScene implements Scene {
                 .findFirst()
                 .orElseThrow();
         this.player = new KinematicBody(playerSpawn.x(), playerSpawn.y(), 18.0f, 38.0f);
-        this.controller = new PlayerController(PlayerControllerConfig.metroidvaniaDefaults());
+        this.playerConfig = PlayerControllerConfig.metroidvaniaDefaults();
+        this.controller = new PlayerController(playerConfig);
         RoomDefinition.SpawnPoint slimeSpawn = findSlimeSpawn();
         this.slime = new KinematicBody(slimeSpawn.x(), slimeSpawn.y(), 28.0f, 18.0f);
-        this.slimeController = new PatrolController(PatrolControllerConfig.slimeDefaults(), -1);
+        this.slimePatrolConfig = PatrolControllerConfig.slimeDefaults();
+        this.slimeController = new PatrolController(slimePatrolConfig, -1);
     }
 
     @Override
@@ -133,20 +145,29 @@ final class TestRoomScene implements Scene {
             playerHealth.reset();
             slimeHealth.reset();
             hitPauseTimer.reset();
+            playerHitStunTimer.reset();
+            slimeHitStunTimer.reset();
             currentAttackHitbox = null;
             attackTimeline.reset();
         }
 
-        if (Gdx.input.isKeyJustPressed(Input.Keys.J) && attackTimeline.acceptingNewAttack() && !playerHealth.defeated()) {
+        if (Gdx.input.isKeyJustPressed(Input.Keys.J)
+                && attackTimeline.acceptingNewAttack()
+                && !playerHealth.defeated()
+                && !playerHitStunTimer.stunned()) {
             attackFacingRight = facingRight;
             attackTimeline.start(slashTimeline);
             currentAttackHitbox = createPlayerSlashHitbox();
         }
         if (!playerHealth.defeated()) {
-            state = controller.update(input, player, grid, deltaSeconds);
+            if (playerHitStunTimer.stunned()) {
+                updatePlayerHitStun(deltaSeconds);
+            } else {
+                state = controller.update(input, player, grid, deltaSeconds);
+            }
         }
         if (!slimeHealth.defeated()) {
-            slimeController.update(slime, grid, deltaSeconds);
+            updateSlimeMovement(deltaSeconds);
         }
         updateCombat(deltaSeconds);
         clampCameraToRoom();
@@ -218,6 +239,9 @@ final class TestRoomScene implements Scene {
                     DamageApplication application = slimeHealth.apply(event);
                     if (application.applied()) {
                         hitPauseTimer.trigger(event.hitPauseSeconds());
+                        slimeHitStunTimer.trigger(event.hitStunSeconds());
+                        slime.setVelocityX(event.knockbackX());
+                        slime.setVelocityY(event.knockbackY());
                     }
                 }
             }
@@ -235,10 +259,70 @@ final class TestRoomScene implements Scene {
             for (DamageEvent event : damageEvents) {
                 DamageApplication application = playerHealth.apply(event);
                 if (application.applied()) {
+                    playerHitStunTimer.trigger(event.hitStunSeconds());
                     player.setVelocityX(event.knockbackX());
                     player.setVelocityY(event.knockbackY());
                 }
             }
+        }
+    }
+
+    private void updatePlayerHitStun(float deltaSeconds) {
+        float nextY = player.velocityY() - playerConfig.gravityPixelsPerSecondSquared() * deltaSeconds;
+        player.setVelocityY(Math.max(nextY, -playerConfig.maxFallSpeedPixelsPerSecond()));
+        MovementResult result = playerKnockbackMover.move(
+                player,
+                grid,
+                player.velocityX() * deltaSeconds,
+                player.velocityY() * deltaSeconds
+        );
+
+        if ((result.hitLeft() && player.velocityX() < 0.0f) || (result.hitRight() && player.velocityX() > 0.0f)) {
+            player.setVelocityX(0.0f);
+        }
+        if (result.hitGround() && player.velocityY() < 0.0f) {
+            player.setVelocityY(0.0f);
+            state = Math.abs(player.velocityX()) < 0.01f ? PlayerState.IDLE : PlayerState.RUN;
+        } else if (result.hitCeiling() && player.velocityY() > 0.0f) {
+            player.setVelocityY(0.0f);
+            state = PlayerState.FALL;
+        } else {
+            state = player.velocityY() > 0.0f ? PlayerState.JUMP : PlayerState.FALL;
+        }
+
+        playerHitStunTimer.update(deltaSeconds);
+        if (!playerHitStunTimer.stunned()) {
+            player.setVelocityX(0.0f);
+        }
+    }
+
+    private void updateSlimeMovement(float deltaSeconds) {
+        if (!slimeHitStunTimer.stunned()) {
+            slimeController.update(slime, grid, deltaSeconds);
+            return;
+        }
+
+        float nextY = slime.velocityY() - slimePatrolConfig.gravityPixelsPerSecondSquared() * deltaSeconds;
+        slime.setVelocityY(Math.max(nextY, -slimePatrolConfig.maxFallSpeedPixelsPerSecond()));
+        MovementResult result = enemyKnockbackMover.move(
+                slime,
+                grid,
+                slime.velocityX() * deltaSeconds,
+                slime.velocityY() * deltaSeconds
+        );
+
+        if ((result.hitLeft() && slime.velocityX() < 0.0f) || (result.hitRight() && slime.velocityX() > 0.0f)) {
+            slime.setVelocityX(0.0f);
+        }
+        if (result.hitGround() && slime.velocityY() < 0.0f) {
+            slime.setVelocityY(0.0f);
+        } else if (result.hitCeiling() && slime.velocityY() > 0.0f) {
+            slime.setVelocityY(0.0f);
+        }
+
+        slimeHitStunTimer.update(deltaSeconds);
+        if (!slimeHitStunTimer.stunned()) {
+            slime.setVelocityX(0.0f);
         }
     }
 
@@ -335,6 +419,8 @@ final class TestRoomScene implements Scene {
                 + " | " + state
                 + " | attack=" + attackTimeline.phase()
                 + " | hitPause=" + hitPauseTimer.paused()
+                + " | playerStun=" + playerHitStunTimer.stunned()
+                + " | slimeStun=" + slimeHitStunTimer.stunned()
                 + " | playerHP=" + playerHealth.currentHealth()
                 + " | slimeHP=" + slimeHealth.currentHealth()
                 + " | A/D move, Space jump, J attack, R reset, Esc quit");

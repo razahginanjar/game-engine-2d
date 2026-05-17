@@ -58,7 +58,7 @@ Do not commit local absolute paths, credentials, generated build folders, IDE st
 - `engine-physics2d`: tile collision, kinematic player movement, and simple enemy patrol movement.
 - `engine-assets`: asset path validation.
 - `engine-room`: JSON room model loading and validation.
-- `engine-combat`: hitbox/hurtbox definitions and overlap resolution, team filtering, attack timing, damage events, health, invulnerability frames, and hit pause.
+- `engine-combat`: hitbox/hurtbox definitions and overlap resolution, team filtering, attack timing, damage events, health, invulnerability frames, hit pause, and hit stun.
 - `sample-metroidvania`: LibGDX graybox room proving movement and collision.
 - `desktop`: LWJGL3 launcher.
 
@@ -76,6 +76,7 @@ Implemented first because it blocks every later gameplay feature:
 - Attack timeline player for startup, active, recovery, and finished windows.
 - Health pools with deterministic invulnerability-frame rejection.
 - Deterministic hit-pause timer for impact freeze frames.
-- Graybox combat sample with player slash, moving slime patrol, anchored hitbox movement, contact damage, knockback, HP state, hit pause, active hitbox debug, slime hurtbox, and reset.
+- Deterministic hit-stun timer for post-hit action lock.
+- Graybox combat sample with player slash, moving slime patrol, anchored hitbox movement, contact damage, knockback, HP state, hit pause, hit stun, active hitbox debug, slime hurtbox, and reset.
 
 Next planned systems are metadata-driven asset import and animation state machine.

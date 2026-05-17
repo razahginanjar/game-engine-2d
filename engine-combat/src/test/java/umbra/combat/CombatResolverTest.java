@@ -22,6 +22,8 @@ final class CombatResolverTest {
         assertEquals(2, event.targetEntityId());
         assertEquals("player_slash_01", event.attackId());
         assertEquals(1, event.damage());
+        assertEquals(0.045f, event.hitPauseSeconds(), 0.0001f);
+        assertEquals(0.18f, event.hitStunSeconds(), 0.0001f);
         assertTrue(event.knockbackX() > 0.0f);
     }
 
@@ -92,6 +94,6 @@ final class CombatResolverTest {
     }
 
     private AttackDefinition slash() {
-        return new AttackDefinition("player_slash_01", 1, 160.0f, 40.0f, 0.045f, "slash");
+        return new AttackDefinition("player_slash_01", 1, 160.0f, 40.0f, 0.045f, 0.18f, "slash");
     }
 }
