@@ -24,6 +24,8 @@ import umbra.core.Scene;
 import umbra.physics.Aabb;
 import umbra.physics.CollisionGrid;
 import umbra.physics.KinematicBody;
+import umbra.physics.enemy.PatrolController;
+import umbra.physics.enemy.PatrolControllerConfig;
 import umbra.physics.player.PlayerController;
 import umbra.physics.player.PlayerControllerConfig;
 import umbra.physics.player.PlayerInput;
@@ -48,6 +50,8 @@ final class TestRoomScene implements Scene {
     private final CollisionGrid grid;
     private final KinematicBody player;
     private final PlayerController controller;
+    private final KinematicBody slime;
+    private final PatrolController slimeController;
     private final CombatResolver combatResolver = new CombatResolver();
     private final AttackTimelinePlayer attackTimeline = new AttackTimelinePlayer();
     private final AttackTimelineDefinition slashTimeline = new AttackTimelineDefinition(
@@ -65,7 +69,6 @@ final class TestRoomScene implements Scene {
             "contact"
     );
     private final HitboxDefinition slashHitboxDefinition = new HitboxDefinition(34.0f, 28.0f, 0.0f, 5.0f);
-    private final Aabb slimeHurtbox;
     private final HealthPool playerHealth = new HealthPool(5, 0.75f);
     private final HealthPool slimeHealth = new HealthPool(3, 0.0f);
     private final HitPauseTimer hitPauseTimer = new HitPauseTimer();
@@ -87,7 +90,9 @@ final class TestRoomScene implements Scene {
                 .orElseThrow();
         this.player = new KinematicBody(playerSpawn.x(), playerSpawn.y(), 18.0f, 38.0f);
         this.controller = new PlayerController(PlayerControllerConfig.metroidvaniaDefaults());
-        this.slimeHurtbox = createSlimeHurtbox();
+        RoomDefinition.SpawnPoint slimeSpawn = findSlimeSpawn();
+        this.slime = new KinematicBody(slimeSpawn.x(), slimeSpawn.y(), 28.0f, 18.0f);
+        this.slimeController = new PatrolController(PatrolControllerConfig.slimeDefaults(), -1);
     }
 
     @Override
@@ -120,6 +125,11 @@ final class TestRoomScene implements Scene {
             player.setPosition(playerSpawn.x(), playerSpawn.y());
             player.setVelocityX(0.0f);
             player.setVelocityY(0.0f);
+            RoomDefinition.SpawnPoint slimeSpawn = findSlimeSpawn();
+            slime.setPosition(slimeSpawn.x(), slimeSpawn.y());
+            slime.setVelocityX(0.0f);
+            slime.setVelocityY(0.0f);
+            slimeController.reset(-1);
             playerHealth.reset();
             slimeHealth.reset();
             hitPauseTimer.reset();
@@ -134,6 +144,9 @@ final class TestRoomScene implements Scene {
         }
         if (!playerHealth.defeated()) {
             state = controller.update(input, player, grid, deltaSeconds);
+        }
+        if (!slimeHealth.defeated()) {
+            slimeController.update(slime, grid, deltaSeconds);
         }
         updateCombat(deltaSeconds);
         clampCameraToRoom();
@@ -167,12 +180,11 @@ final class TestRoomScene implements Scene {
         return createdGrid;
     }
 
-    private Aabb createSlimeHurtbox() {
-        RoomDefinition.SpawnPoint slimeSpawn = room.spawns().stream()
+    private RoomDefinition.SpawnPoint findSlimeSpawn() {
+        return room.spawns().stream()
                 .filter(spawn -> spawn.id().equals("slime_a"))
                 .findFirst()
                 .orElse(new RoomDefinition.SpawnPoint("slime_a", "enemy_spawn", 520.0f, 64.0f));
-        return new Aabb(slimeSpawn.x(), slimeSpawn.y(), 28.0f, 18.0f);
     }
 
     private HitboxInstance createPlayerSlashHitbox() {
@@ -200,7 +212,7 @@ final class TestRoomScene implements Scene {
             if (!slimeHealth.defeated()) {
                 List<DamageEvent> damageEvents = combatResolver.resolve(
                         List.of(currentAttackHitbox),
-                        List.of(new HurtboxInstance(SLIME_ENTITY_ID, CombatTeam.ENEMY, slimeHurtbox, true))
+                        List.of(new HurtboxInstance(SLIME_ENTITY_ID, CombatTeam.ENEMY, slime.bounds(), true))
                 );
                 for (DamageEvent event : damageEvents) {
                     DamageApplication application = slimeHealth.apply(event);
@@ -217,7 +229,7 @@ final class TestRoomScene implements Scene {
 
         if (!playerHealth.defeated() && !slimeHealth.defeated()) {
             List<DamageEvent> damageEvents = combatResolver.resolve(
-                    List.of(new HitboxInstance(SLIME_ENTITY_ID, CombatTeam.ENEMY, slimeContactAttack, slimeHurtbox, true)),
+                    List.of(new HitboxInstance(SLIME_ENTITY_ID, CombatTeam.ENEMY, slimeContactAttack, slime.bounds(), true)),
                     List.of(new HurtboxInstance(PLAYER_ENTITY_ID, CombatTeam.PLAYER, player.bounds(), true))
             );
             for (DamageEvent event : damageEvents) {
@@ -282,14 +294,14 @@ final class TestRoomScene implements Scene {
         } else {
             shapes.setColor(0.15f, 0.18f, 0.15f, 1.0f);
         }
-        shapes.rect(slimeHurtbox.x(), slimeHurtbox.y(), slimeHurtbox.width(), slimeHurtbox.height());
+        shapes.rect(slime.x(), slime.y(), slime.width(), slime.height());
         shapes.end();
     }
 
     private void drawCombatDebug() {
         shapes.begin(ShapeRenderer.ShapeType.Line);
         shapes.setColor(Color.YELLOW);
-        shapes.rect(slimeHurtbox.x(), slimeHurtbox.y(), slimeHurtbox.width(), slimeHurtbox.height());
+        shapes.rect(slime.x(), slime.y(), slime.width(), slime.height());
 
         if (currentAttackHitbox != null) {
             if (currentAttackHitbox.active()) {
