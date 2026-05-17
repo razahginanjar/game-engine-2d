@@ -55,6 +55,7 @@ Do not commit local absolute paths, credentials, generated build folders, IDE st
 ## Architecture Snapshot
 
 - `engine-core`: config, scene lifecycle, fixed timestep.
+- `engine-render`: debug draw command model and LibGDX shape renderer adapter.
 - `engine-physics2d`: tile collision, kinematic player movement, simple enemy patrol movement, and impulse/knockback movement.
 - `engine-assets`: asset path validation.
 - `engine-room`: JSON room model loading and validation.
@@ -68,6 +69,7 @@ Implemented first because it blocks every later gameplay feature:
 
 - Java 17 Maven project structure.
 - Fixed-step scene runtime.
+- Renderer debug command layer for grids, solid tiles, and AABB overlays.
 - 32 px tile collision grid.
 - Kinematic player controller with acceleration, gravity, jump cut, coyote time, and jump buffer.
 - Kinematic patrol controller for ground enemies with wall and ledge reversal.

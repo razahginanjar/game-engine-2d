@@ -3,7 +3,6 @@ package umbra.sample;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Input;
 import com.badlogic.gdx.graphics.Camera;
-import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
 import umbra.combat.AttackDefinition;
 import umbra.combat.AttackPhase;
@@ -34,6 +33,12 @@ import umbra.physics.player.PlayerController;
 import umbra.physics.player.PlayerControllerConfig;
 import umbra.physics.player.PlayerInput;
 import umbra.physics.player.PlayerState;
+import umbra.render.debug.DebugColor;
+import umbra.render.debug.DebugDrawList;
+import umbra.render.debug.DebugGeometryBuilder;
+import umbra.render.debug.DebugRect;
+import umbra.render.debug.DebugShapeStyle;
+import umbra.render.debug.LibGdxDebugShapeRenderer;
 import umbra.room.RoomDefinition;
 import umbra.room.RoomLoader;
 
@@ -46,8 +51,15 @@ import java.util.Objects;
 final class TestRoomScene implements Scene {
     private static final int PLAYER_ENTITY_ID = 1;
     private static final int SLIME_ENTITY_ID = 2;
+    private static final DebugColor SOLID_TILE_COLOR = new DebugColor(0.18f, 0.30f, 0.22f, 1.0f);
+    private static final DebugColor GRID_COLOR = new DebugColor(0.20f, 0.45f, 0.48f, 0.38f);
+    private static final DebugColor PLAYER_OUTLINE_COLOR = new DebugColor(1.0f, 1.0f, 0.0f, 1.0f);
+    private static final DebugColor HURTBOX_COLOR = new DebugColor(1.0f, 1.0f, 0.0f, 1.0f);
+    private static final DebugColor ATTACK_ACTIVE_COLOR = new DebugColor(1.0f, 0.0f, 0.0f, 1.0f);
+    private static final DebugColor ATTACK_INACTIVE_COLOR = new DebugColor(0.7f, 0.15f, 0.15f, 0.55f);
 
-    private final ShapeRenderer shapes;
+    private final LibGdxDebugShapeRenderer debugRenderer;
+    private final DebugGeometryBuilder debugGeometryBuilder = new DebugGeometryBuilder();
     private final Camera camera;
     private final EngineConfig config;
     private final RoomDefinition room;
@@ -90,7 +102,7 @@ final class TestRoomScene implements Scene {
     private PlayerState state = PlayerState.IDLE;
 
     TestRoomScene(ShapeRenderer shapes, Camera camera, EngineConfig config) {
-        this.shapes = shapes;
+        this.debugRenderer = new LibGdxDebugShapeRenderer(shapes);
         this.camera = camera;
         this.config = config;
         this.room = loadRoom();
@@ -328,80 +340,55 @@ final class TestRoomScene implements Scene {
     }
 
     private void drawRoom() {
-        shapes.begin(ShapeRenderer.ShapeType.Filled);
-        for (int y = 0; y < grid.heightTiles(); y++) {
-            for (int x = 0; x < grid.widthTiles(); x++) {
-                if (grid.isSolidCell(x, y)) {
-                    shapes.setColor(0.18f, 0.30f, 0.22f, 1.0f);
-                    shapes.rect(x * grid.tileSize(), y * grid.tileSize(), grid.tileSize(), grid.tileSize());
-                }
-            }
-        }
-        shapes.end();
-
-        shapes.begin(ShapeRenderer.ShapeType.Line);
-        shapes.setColor(0.20f, 0.45f, 0.48f, 0.38f);
-        for (int x = 0; x <= grid.widthTiles(); x++) {
-            shapes.line(x * grid.tileSize(), 0.0f, x * grid.tileSize(), grid.heightTiles() * grid.tileSize());
-        }
-        for (int y = 0; y <= grid.heightTiles(); y++) {
-            shapes.line(0.0f, y * grid.tileSize(), grid.widthTiles() * grid.tileSize(), y * grid.tileSize());
-        }
-        shapes.end();
+        DebugDrawList drawList = new DebugDrawList();
+        debugGeometryBuilder.addSolidTiles(drawList, grid, SOLID_TILE_COLOR);
+        debugGeometryBuilder.addTileGrid(drawList, grid, GRID_COLOR);
+        debugRenderer.render(drawList);
     }
 
     private void drawPlayer() {
-        shapes.begin(ShapeRenderer.ShapeType.Filled);
-        shapes.setColor(playerColor());
-        shapes.rect(player.x(), player.y(), player.width(), player.height());
-        shapes.end();
-
-        shapes.begin(ShapeRenderer.ShapeType.Line);
-        shapes.setColor(Color.YELLOW);
-        shapes.rect(player.x(), player.y(), player.width(), player.height());
-        shapes.end();
+        DebugDrawList drawList = new DebugDrawList();
+        drawList.addRect(new DebugRect(player.x(), player.y(), player.width(), player.height(), playerColor(), DebugShapeStyle.FILLED));
+        debugGeometryBuilder.addAabb(drawList, player.bounds(), PLAYER_OUTLINE_COLOR);
+        debugRenderer.render(drawList);
     }
 
     private void drawEnemy() {
-        shapes.begin(ShapeRenderer.ShapeType.Filled);
+        DebugColor enemyColor;
         if (!slimeHealth.defeated()) {
-            shapes.setColor(0.30f, 0.85f, 0.32f, 1.0f);
+            enemyColor = new DebugColor(0.30f, 0.85f, 0.32f, 1.0f);
         } else {
-            shapes.setColor(0.15f, 0.18f, 0.15f, 1.0f);
+            enemyColor = new DebugColor(0.15f, 0.18f, 0.15f, 1.0f);
         }
-        shapes.rect(slime.x(), slime.y(), slime.width(), slime.height());
-        shapes.end();
+        DebugDrawList drawList = new DebugDrawList();
+        drawList.addRect(new DebugRect(slime.x(), slime.y(), slime.width(), slime.height(), enemyColor, DebugShapeStyle.FILLED));
+        debugRenderer.render(drawList);
     }
 
     private void drawCombatDebug() {
-        shapes.begin(ShapeRenderer.ShapeType.Line);
-        shapes.setColor(Color.YELLOW);
-        shapes.rect(slime.x(), slime.y(), slime.width(), slime.height());
+        DebugDrawList drawList = new DebugDrawList();
+        debugGeometryBuilder.addAabb(drawList, slime.bounds(), HURTBOX_COLOR);
 
         if (currentAttackHitbox != null) {
-            if (currentAttackHitbox.active()) {
-                shapes.setColor(Color.RED);
-            } else {
-                shapes.setColor(0.7f, 0.15f, 0.15f, 0.55f);
-            }
+            DebugColor hitboxColor = currentAttackHitbox.active() ? ATTACK_ACTIVE_COLOR : ATTACK_INACTIVE_COLOR;
             Aabb hitbox = currentAttackHitbox.bounds();
-            shapes.rect(hitbox.x(), hitbox.y(), hitbox.width(), hitbox.height());
+            debugGeometryBuilder.addAabb(drawList, hitbox, hitboxColor);
         }
-        shapes.end();
+        debugRenderer.render(drawList);
     }
 
-    private Color playerColor() {
+    private DebugColor playerColor() {
         if (playerHealth.defeated()) {
-            return Color.DARK_GRAY;
+            return new DebugColor(0.25f, 0.25f, 0.25f, 1.0f);
         }
         if (playerHealth.invulnerable()) {
-            return Color.MAGENTA;
+            return new DebugColor(1.0f, 0.0f, 1.0f, 1.0f);
         }
         return switch (state) {
-            case IDLE -> Color.SKY;
-            case RUN -> Color.CYAN;
-            case JUMP -> Color.LIME;
-            case FALL -> Color.ORANGE;
+            case IDLE -> new DebugColor(0.53f, 0.81f, 0.92f, 1.0f);
+            case RUN -> new DebugColor(0.0f, 1.0f, 1.0f, 1.0f);
+            case JUMP -> new DebugColor(0.0f, 1.0f, 0.0f, 1.0f);
+            case FALL -> new DebugColor(1.0f, 0.65f, 0.0f, 1.0f);
         };
     }
 
