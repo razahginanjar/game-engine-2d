@@ -25,7 +25,8 @@ import umbra.core.Scene;
 import umbra.physics.Aabb;
 import umbra.physics.CollisionGrid;
 import umbra.physics.KinematicBody;
-import umbra.physics.KinematicMover;
+import umbra.physics.KinematicImpulseConfig;
+import umbra.physics.KinematicImpulseMover;
 import umbra.physics.MovementResult;
 import umbra.physics.enemy.PatrolController;
 import umbra.physics.enemy.PatrolControllerConfig;
@@ -52,13 +53,13 @@ final class TestRoomScene implements Scene {
     private final RoomDefinition room;
     private final CollisionGrid grid;
     private final KinematicBody player;
-    private final PlayerControllerConfig playerConfig;
     private final PlayerController controller;
-    private final KinematicMover playerKnockbackMover = new KinematicMover();
+    private final KinematicImpulseConfig playerImpulseConfig;
+    private final KinematicImpulseMover playerKnockbackMover = new KinematicImpulseMover();
     private final KinematicBody slime;
-    private final PatrolControllerConfig slimePatrolConfig;
+    private final KinematicImpulseConfig slimeImpulseConfig;
     private final PatrolController slimeController;
-    private final KinematicMover enemyKnockbackMover = new KinematicMover();
+    private final KinematicImpulseMover enemyKnockbackMover = new KinematicImpulseMover();
     private final CombatResolver combatResolver = new CombatResolver();
     private final AttackTimelinePlayer attackTimeline = new AttackTimelinePlayer();
     private final AttackTimelineDefinition slashTimeline = new AttackTimelineDefinition(
@@ -99,12 +100,20 @@ final class TestRoomScene implements Scene {
                 .findFirst()
                 .orElseThrow();
         this.player = new KinematicBody(playerSpawn.x(), playerSpawn.y(), 18.0f, 38.0f);
-        this.playerConfig = PlayerControllerConfig.metroidvaniaDefaults();
-        this.controller = new PlayerController(playerConfig);
+        PlayerControllerConfig createdPlayerConfig = PlayerControllerConfig.metroidvaniaDefaults();
+        this.playerImpulseConfig = new KinematicImpulseConfig(
+                createdPlayerConfig.gravityPixelsPerSecondSquared(),
+                createdPlayerConfig.maxFallSpeedPixelsPerSecond()
+        );
+        this.controller = new PlayerController(createdPlayerConfig);
         RoomDefinition.SpawnPoint slimeSpawn = findSlimeSpawn();
         this.slime = new KinematicBody(slimeSpawn.x(), slimeSpawn.y(), 28.0f, 18.0f);
-        this.slimePatrolConfig = PatrolControllerConfig.slimeDefaults();
-        this.slimeController = new PatrolController(slimePatrolConfig, -1);
+        PatrolControllerConfig createdSlimePatrolConfig = PatrolControllerConfig.slimeDefaults();
+        this.slimeImpulseConfig = new KinematicImpulseConfig(
+                createdSlimePatrolConfig.gravityPixelsPerSecondSquared(),
+                createdSlimePatrolConfig.maxFallSpeedPixelsPerSecond()
+        );
+        this.slimeController = new PatrolController(createdSlimePatrolConfig, -1);
     }
 
     @Override
@@ -268,23 +277,16 @@ final class TestRoomScene implements Scene {
     }
 
     private void updatePlayerHitStun(float deltaSeconds) {
-        float nextY = player.velocityY() - playerConfig.gravityPixelsPerSecondSquared() * deltaSeconds;
-        player.setVelocityY(Math.max(nextY, -playerConfig.maxFallSpeedPixelsPerSecond()));
-        MovementResult result = playerKnockbackMover.move(
+        MovementResult result = playerKnockbackMover.update(
                 player,
                 grid,
-                player.velocityX() * deltaSeconds,
-                player.velocityY() * deltaSeconds
+                playerImpulseConfig,
+                deltaSeconds
         );
 
-        if ((result.hitLeft() && player.velocityX() < 0.0f) || (result.hitRight() && player.velocityX() > 0.0f)) {
-            player.setVelocityX(0.0f);
-        }
-        if (result.hitGround() && player.velocityY() < 0.0f) {
-            player.setVelocityY(0.0f);
+        if (result.hitGround()) {
             state = Math.abs(player.velocityX()) < 0.01f ? PlayerState.IDLE : PlayerState.RUN;
-        } else if (result.hitCeiling() && player.velocityY() > 0.0f) {
-            player.setVelocityY(0.0f);
+        } else if (result.hitCeiling()) {
             state = PlayerState.FALL;
         } else {
             state = player.velocityY() > 0.0f ? PlayerState.JUMP : PlayerState.FALL;
@@ -302,23 +304,12 @@ final class TestRoomScene implements Scene {
             return;
         }
 
-        float nextY = slime.velocityY() - slimePatrolConfig.gravityPixelsPerSecondSquared() * deltaSeconds;
-        slime.setVelocityY(Math.max(nextY, -slimePatrolConfig.maxFallSpeedPixelsPerSecond()));
-        MovementResult result = enemyKnockbackMover.move(
+        enemyKnockbackMover.update(
                 slime,
                 grid,
-                slime.velocityX() * deltaSeconds,
-                slime.velocityY() * deltaSeconds
+                slimeImpulseConfig,
+                deltaSeconds
         );
-
-        if ((result.hitLeft() && slime.velocityX() < 0.0f) || (result.hitRight() && slime.velocityX() > 0.0f)) {
-            slime.setVelocityX(0.0f);
-        }
-        if (result.hitGround() && slime.velocityY() < 0.0f) {
-            slime.setVelocityY(0.0f);
-        } else if (result.hitCeiling() && slime.velocityY() > 0.0f) {
-            slime.setVelocityY(0.0f);
-        }
 
         slimeHitStunTimer.update(deltaSeconds);
         if (!slimeHitStunTimer.stunned()) {

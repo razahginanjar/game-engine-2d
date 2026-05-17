@@ -55,7 +55,7 @@ Do not commit local absolute paths, credentials, generated build folders, IDE st
 ## Architecture Snapshot
 
 - `engine-core`: config, scene lifecycle, fixed timestep.
-- `engine-physics2d`: tile collision, kinematic player movement, and simple enemy patrol movement.
+- `engine-physics2d`: tile collision, kinematic player movement, simple enemy patrol movement, and impulse/knockback movement.
 - `engine-assets`: asset path validation.
 - `engine-room`: JSON room model loading and validation.
 - `engine-combat`: hitbox/hurtbox definitions and overlap resolution, team filtering, attack timing, damage events, health, invulnerability frames, hit pause, and hit stun.
@@ -71,6 +71,7 @@ Implemented first because it blocks every later gameplay feature:
 - 32 px tile collision grid.
 - Kinematic player controller with acceleration, gravity, jump cut, coyote time, and jump buffer.
 - Kinematic patrol controller for ground enemies with wall and ledge reversal.
+- Kinematic impulse mover for knockback and hit-stun movement through tile collision.
 - Data-loaded debug-visible graybox room.
 - Facing-aware hitbox definitions and active hitbox versus enabled hurtbox damage events with optional team filtering.
 - Attack timeline player for startup, active, recovery, and finished windows.
