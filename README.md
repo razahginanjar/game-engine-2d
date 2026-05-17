@@ -60,5 +60,6 @@ Implemented first because it blocks every later gameplay feature:
 - Kinematic player controller with acceleration, gravity, jump cut, coyote time, and jump buffer.
 - Data-loaded debug-visible graybox room.
 - Combat resolver for active hitbox versus enabled hurtbox damage events.
+- Attack timeline player for startup, active, recovery, and finished windows.
 
-Next planned systems are metadata-driven asset import, animation state machine, and combat timeline activation.
+Next planned systems are metadata-driven asset import, animation state machine, and sample combat wiring.
