@@ -3,7 +3,10 @@ package umbra.sample;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Input;
 import com.badlogic.gdx.graphics.Camera;
+import com.badlogic.gdx.graphics.Texture;
+import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
+import com.badlogic.gdx.files.FileHandle;
 import umbra.combat.AttackDefinition;
 import umbra.combat.AttackPhase;
 import umbra.combat.AttackTimelineDefinition;
@@ -39,12 +42,16 @@ import umbra.render.debug.DebugGeometryBuilder;
 import umbra.render.debug.DebugRect;
 import umbra.render.debug.DebugShapeStyle;
 import umbra.render.debug.LibGdxDebugShapeRenderer;
+import umbra.render.sprite.LibGdxSpriteBatchRenderer;
+import umbra.render.sprite.SpriteDrawCommand;
+import umbra.render.sprite.SpriteDrawList;
 import umbra.room.RoomDefinition;
 import umbra.room.RoomLoader;
 
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.Objects;
 
@@ -57,7 +64,13 @@ final class TestRoomScene implements Scene {
     private static final DebugColor HURTBOX_COLOR = new DebugColor(1.0f, 1.0f, 0.0f, 1.0f);
     private static final DebugColor ATTACK_ACTIVE_COLOR = new DebugColor(1.0f, 0.0f, 0.0f, 1.0f);
     private static final DebugColor ATTACK_INACTIVE_COLOR = new DebugColor(0.7f, 0.15f, 0.15f, 0.55f);
+    private static final DebugColor WHITE = new DebugColor(1.0f, 1.0f, 1.0f, 1.0f);
+    private static final String PLAYER_IDLE_TEXTURE = "player_idle";
+    private static final String SLIME_IDLE_TEXTURE = "slime_green_idle";
+    private static final int PLAYER_SOURCE_WIDTH = 120;
+    private static final int PLAYER_SOURCE_HEIGHT = 80;
 
+    private final LibGdxSpriteBatchRenderer spriteRenderer;
     private final LibGdxDebugShapeRenderer debugRenderer;
     private final DebugGeometryBuilder debugGeometryBuilder = new DebugGeometryBuilder();
     private final Camera camera;
@@ -101,10 +114,12 @@ final class TestRoomScene implements Scene {
     private boolean previousJumpDown;
     private PlayerState state = PlayerState.IDLE;
 
-    TestRoomScene(ShapeRenderer shapes, Camera camera, EngineConfig config) {
+    TestRoomScene(SpriteBatch spriteBatch, ShapeRenderer shapes, Camera camera, EngineConfig config) {
+        this.spriteRenderer = new LibGdxSpriteBatchRenderer(spriteBatch);
         this.debugRenderer = new LibGdxDebugShapeRenderer(shapes);
         this.camera = camera;
         this.config = config;
+        loadExternalSprites();
         this.room = loadRoom();
         this.grid = createGrid(room);
         RoomDefinition.SpawnPoint playerSpawn = room.spawns().stream()
@@ -126,6 +141,11 @@ final class TestRoomScene implements Scene {
                 createdSlimePatrolConfig.maxFallSpeedPixelsPerSecond()
         );
         this.slimeController = new PatrolController(createdSlimePatrolConfig, -1);
+    }
+
+    @Override
+    public void onExit() {
+        spriteRenderer.disposeTextures();
     }
 
     @Override
@@ -347,13 +367,61 @@ final class TestRoomScene implements Scene {
     }
 
     private void drawPlayer() {
+        if (spriteRenderer.hasTexture(PLAYER_IDLE_TEXTURE)) {
+            SpriteDrawList sprites = new SpriteDrawList();
+            sprites.add(new SpriteDrawCommand(
+                    PLAYER_IDLE_TEXTURE,
+                    0,
+                    0,
+                    PLAYER_SOURCE_WIDTH,
+                    PLAYER_SOURCE_HEIGHT,
+                    player.x() - 51.0f,
+                    player.y() - 30.0f,
+                    PLAYER_SOURCE_WIDTH,
+                    PLAYER_SOURCE_HEIGHT,
+                    !facingRight,
+                    false,
+                    playerSpriteTint()
+            ));
+            spriteRenderer.render(sprites);
+        } else {
+            drawPlayerFallback();
+        }
+
+        DebugDrawList debug = new DebugDrawList();
+        debugGeometryBuilder.addAabb(debug, player.bounds(), PLAYER_OUTLINE_COLOR);
+        debugRenderer.render(debug);
+    }
+
+    private void drawPlayerFallback() {
         DebugDrawList drawList = new DebugDrawList();
         drawList.addRect(new DebugRect(player.x(), player.y(), player.width(), player.height(), playerColor(), DebugShapeStyle.FILLED));
-        debugGeometryBuilder.addAabb(drawList, player.bounds(), PLAYER_OUTLINE_COLOR);
         debugRenderer.render(drawList);
     }
 
     private void drawEnemy() {
+        if (!slimeHealth.defeated() && spriteRenderer.hasTexture(SLIME_IDLE_TEXTURE)) {
+            float drawWidth = 56.0f;
+            float drawHeight = 38.0f;
+            SpriteDrawList sprites = new SpriteDrawList();
+            sprites.add(new SpriteDrawCommand(
+                    SLIME_IDLE_TEXTURE,
+                    0,
+                    0,
+                    spriteRenderer.textureWidth(SLIME_IDLE_TEXTURE),
+                    spriteRenderer.textureHeight(SLIME_IDLE_TEXTURE),
+                    slime.x() + slime.width() * 0.5f - drawWidth * 0.5f,
+                    slime.y() - 8.0f,
+                    drawWidth,
+                    drawHeight,
+                    slimeController.facingRight(),
+                    false,
+                    WHITE
+            ));
+            spriteRenderer.render(sprites);
+            return;
+        }
+
         DebugColor enemyColor;
         if (!slimeHealth.defeated()) {
             enemyColor = new DebugColor(0.30f, 0.85f, 0.32f, 1.0f);
@@ -390,6 +458,41 @@ final class TestRoomScene implements Scene {
             case JUMP -> new DebugColor(0.0f, 1.0f, 0.0f, 1.0f);
             case FALL -> new DebugColor(1.0f, 0.65f, 0.0f, 1.0f);
         };
+    }
+
+    private DebugColor playerSpriteTint() {
+        if (playerHealth.defeated()) {
+            return new DebugColor(0.45f, 0.45f, 0.45f, 1.0f);
+        }
+        if (playerHealth.invulnerable()) {
+            return new DebugColor(1.0f, 0.55f, 1.0f, 1.0f);
+        }
+        return WHITE;
+    }
+
+    private void loadExternalSprites() {
+        Path assetRoot = Path.of(System.getProperty("umbra.assets.root", "../assets")).toAbsolutePath().normalize();
+        registerTextureIfPresent(PLAYER_IDLE_TEXTURE, assetRoot.resolve(Path.of(
+                "char",
+                "FreeKnight_v1",
+                "Colour1",
+                "NoOutline",
+                "120x80_PNGSheets",
+                "_Idle.png"
+        )));
+        registerTextureIfPresent(SLIME_IDLE_TEXTURE, assetRoot.resolve(Path.of(
+                "monster",
+                "Slimes",
+                "SlimeGreen",
+                "SlimeBasic_00000.png"
+        )));
+    }
+
+    private void registerTextureIfPresent(String textureId, Path texturePath) {
+        FileHandle file = Gdx.files.absolute(texturePath.toString());
+        if (file.exists()) {
+            spriteRenderer.registerTexture(textureId, new Texture(file));
+        }
     }
 
     private void drawHud() {

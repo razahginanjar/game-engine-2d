@@ -55,7 +55,7 @@ Do not commit local absolute paths, credentials, generated build folders, IDE st
 ## Architecture Snapshot
 
 - `engine-core`: config, scene lifecycle, fixed timestep.
-- `engine-render`: debug draw command model and LibGDX shape renderer adapter.
+- `engine-render`: debug draw command model, sprite draw command model, and LibGDX render adapters.
 - `engine-physics2d`: tile collision, kinematic player movement, simple enemy patrol movement, and impulse/knockback movement.
 - `engine-assets`: asset path validation.
 - `engine-room`: JSON room model loading and v1 contract validation.
@@ -69,7 +69,7 @@ Implemented first because it blocks every later gameplay feature:
 
 - Java 17 Maven project structure.
 - Fixed-step scene runtime.
-- Renderer debug command layer for grids, solid tiles, and AABB overlays.
+- Renderer command layers for sprites, grids, solid tiles, and AABB overlays.
 - 32 px tile collision grid.
 - Kinematic player controller with acceleration, gravity, jump cut, coyote time, and jump buffer.
 - Kinematic patrol controller for ground enemies with wall and ledge reversal.
@@ -82,5 +82,13 @@ Implemented first because it blocks every later gameplay feature:
 - Deterministic hit-pause timer for impact freeze frames.
 - Deterministic hit-stun timer for post-hit action lock.
 - Graybox combat sample with player slash, moving slime patrol, anchored hitbox movement, contact damage, knockback, HP state, hit pause, hit stun, active hitbox debug, slime hurtbox, and reset.
+
+Sprite assets are loaded from `../assets` by default. Override with:
+
+```powershell
+mvn -f desktop/pom.xml "-Dumbra.assets.root=C:\path\to\assets" org.codehaus.mojo:exec-maven-plugin:3.2.0:java
+```
+
+If sprite files are unavailable, the sample falls back to colored debug rectangles.
 
 Next planned systems are metadata-driven asset import and animation state machine.
