@@ -17,14 +17,26 @@ mvn test
 
 ## Run Desktop Sample
 
+Use the checked-in helper:
+
 ```powershell
-mvn -pl desktop -am exec:java
+.\scripts\run-desktop.ps1
 ```
+
+Or run the two Maven steps manually:
+
+```powershell
+mvn -pl desktop -am install "-DskipTests"
+mvn -f desktop/pom.xml org.codehaus.mojo:exec-maven-plugin:3.2.0:java
+```
+
+Do not run `mvn exec:java` from the repository root; the root project is a parent POM and has no desktop `mainClass`.
 
 Controls:
 
 - `A/D` or arrow keys: move
 - `Space` or `Up`: jump
+- `J`: attack
 - `R`: reset player
 - `Esc`: quit
 
@@ -46,7 +58,7 @@ Do not commit local absolute paths, credentials, generated build folders, IDE st
 - `engine-physics2d`: tile collision and kinematic player movement.
 - `engine-assets`: asset path validation.
 - `engine-room`: JSON room model loading and validation.
-- `engine-combat`: hitbox/hurtbox overlap resolution and damage events.
+- `engine-combat`: hitbox/hurtbox overlap resolution, attack timing, and damage events.
 - `sample-metroidvania`: LibGDX graybox room proving movement and collision.
 - `desktop`: LWJGL3 launcher.
 
@@ -61,5 +73,6 @@ Implemented first because it blocks every later gameplay feature:
 - Data-loaded debug-visible graybox room.
 - Combat resolver for active hitbox versus enabled hurtbox damage events.
 - Attack timeline player for startup, active, recovery, and finished windows.
+- Graybox combat sample with player slash, active hitbox debug, slime hurtbox, and reset.
 
-Next planned systems are metadata-driven asset import, animation state machine, and sample combat wiring.
+Next planned systems are metadata-driven asset import and animation state machine.
