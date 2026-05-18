@@ -16,7 +16,8 @@ public record AnimationClipDefinition(
         int frameHeight,
         int frameCount,
         float fps,
-        boolean loop
+        boolean loop,
+        List<AnimationFrameEvent> events
 ) {
     public AnimationClipDefinition {
         if (id == null || id.isBlank()) {
@@ -48,6 +49,12 @@ public record AnimationClipDefinition(
         if (fps <= 0.0f) {
             throw new IllegalArgumentException("fps must be positive");
         }
+        events = events == null ? List.of() : List.copyOf(events);
+        for (AnimationFrameEvent event : events) {
+            if (event.frameIndex() >= frameCount) {
+                throw new IllegalArgumentException("event frameIndex out of clip range");
+            }
+        }
     }
 
     public String textureIdForFrame(int frameIndex) {
@@ -69,6 +76,19 @@ public record AnimationClipDefinition(
     public int sourceYForFrame(int frameIndex) {
         validateFrameIndex(frameIndex);
         return sourceY;
+    }
+
+    public boolean hasEvent(int frameIndex, String eventId) {
+        validateFrameIndex(frameIndex);
+        if (eventId == null || eventId.isBlank()) {
+            return false;
+        }
+        for (AnimationFrameEvent event : events) {
+            if (event.frameIndex() == frameIndex && event.id().equals(eventId)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private void validateFrameIndex(int frameIndex) {

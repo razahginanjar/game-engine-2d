@@ -42,4 +42,8 @@ public final class AnimationSetDefinition {
         }
         return clip;
     }
+
+    public boolean hasClip(String id) {
+        return id != null && clipsById.containsKey(id);
+    }
 }

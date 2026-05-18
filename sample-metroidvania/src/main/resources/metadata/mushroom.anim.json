@@ -26,7 +26,11 @@
       "frame_height": 150,
       "frame_count": 8,
       "fps": 14,
-      "loop": false
+      "loop": false,
+      "events": [
+        { "frame": 5, "id": "attack_active" },
+        { "frame": 6, "id": "attack_active" }
+      ]
     },
     {
       "id": "take_hit",

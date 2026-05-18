@@ -15,6 +15,7 @@ import umbra.animation.AnimationClipDefinition;
 import umbra.animation.AnimationMetadataLoader;
 import umbra.animation.AnimationPlayer;
 import umbra.animation.AnimationSetDefinition;
+import umbra.animation.AnimationSetValidator;
 import umbra.ai.EnemyAiState;
 import umbra.ai.EnemyBrain;
 import umbra.ai.EnemyBrainConfig;
@@ -81,9 +82,7 @@ final class TestRoomScene implements Scene {
     private static final DebugColor ATTACK_ACTIVE_COLOR = new DebugColor(1.0f, 0.0f, 0.0f, 1.0f);
     private static final DebugColor ATTACK_INACTIVE_COLOR = new DebugColor(0.7f, 0.15f, 0.15f, 0.55f);
     private static final DebugColor WHITE = new DebugColor(1.0f, 1.0f, 1.0f, 1.0f);
-    // Runtime frames are zero-based, so these map to Attack 6.png and Attack 7.png.
-    private static final int ENEMY_ATTACK_ACTIVE_FRAME_START = 5;
-    private static final int ENEMY_ATTACK_ACTIVE_FRAME_END = 6;
+    private static final String ANIMATION_EVENT_ATTACK_ACTIVE = "attack_active";
     private static final String PLAYER_IDLE_TEXTURE = "player_idle";
     private static final String PLAYER_RUN_TEXTURE = "player_run";
     private static final String PLAYER_JUMP_TEXTURE = "player_jump";
@@ -105,6 +104,7 @@ final class TestRoomScene implements Scene {
     private final LibGdxSpriteBatchRenderer spriteRenderer;
     private final LibGdxDebugShapeRenderer debugRenderer;
     private final DebugGeometryBuilder debugGeometryBuilder = new DebugGeometryBuilder();
+    private final AnimationSetValidator animationSetValidator = new AnimationSetValidator();
     private final Camera camera;
     private final EngineConfig config;
     private final RoomDefinition room;
@@ -157,12 +157,17 @@ final class TestRoomScene implements Scene {
         this.debugRenderer = new LibGdxDebugShapeRenderer(shapes);
         this.camera = camera;
         this.config = config;
-        this.playerAnimationSet = loadAnimationSet("/metadata/player_knight.anim.json");
-        this.slimeAnimationSet = loadAnimationSet("/metadata/slime_green.anim.json");
-        this.goblinAnimationSet = loadAnimationSet("/metadata/goblin.anim.json");
-        this.flyingEyeAnimationSet = loadAnimationSet("/metadata/flying_eye.anim.json");
-        this.skeletonAnimationSet = loadAnimationSet("/metadata/skeleton.anim.json");
-        this.mushroomAnimationSet = loadAnimationSet("/metadata/mushroom.anim.json");
+        this.playerAnimationSet = loadAnimationSet("/metadata/player_knight.anim.json",
+                List.of("idle", "run", "jump", "fall", "attack", "hit", "death"));
+        this.slimeAnimationSet = loadAnimationSet("/metadata/slime_green.anim.json", List.of("move"));
+        this.goblinAnimationSet = loadAnimationSet("/metadata/goblin.anim.json",
+                List.of("move", "idle", "attack", "take_hit", "death"));
+        this.flyingEyeAnimationSet = loadAnimationSet("/metadata/flying_eye.anim.json",
+                List.of("move", "attack", "take_hit", "death"));
+        this.skeletonAnimationSet = loadAnimationSet("/metadata/skeleton.anim.json",
+                List.of("move", "attack", "take_hit", "death", "shield"));
+        this.mushroomAnimationSet = loadAnimationSet("/metadata/mushroom.anim.json",
+                List.of("move", "idle", "attack", "take_hit", "death"));
         loadExternalSprites();
         this.room = loadRoom();
         this.grid = createGrid(room);
@@ -657,8 +662,7 @@ final class TestRoomScene implements Scene {
         return enemy.brain.state() == EnemyAiState.ATTACK
                 && clip != null
                 && clip.id().equals("attack")
-                && enemy.animator.frameIndex() >= ENEMY_ATTACK_ACTIVE_FRAME_START
-                && enemy.animator.frameIndex() <= ENEMY_ATTACK_ACTIVE_FRAME_END;
+                && clip.hasEvent(enemy.animator.frameIndex(), ANIMATION_EVENT_ATTACK_ACTIVE);
     }
 
     private EnemyActor findEnemy(int entityId) {
@@ -670,12 +674,14 @@ final class TestRoomScene implements Scene {
         return null;
     }
 
-    private AnimationSetDefinition loadAnimationSet(String resourcePath) {
+    private AnimationSetDefinition loadAnimationSet(String resourcePath, List<String> requiredClipIds) {
         try (InputStreamReader reader = new InputStreamReader(
                 Objects.requireNonNull(TestRoomScene.class.getResourceAsStream(resourcePath)),
                 StandardCharsets.UTF_8
         )) {
-            return new AnimationMetadataLoader().load(reader);
+            AnimationSetDefinition animationSet = new AnimationMetadataLoader().load(reader);
+            animationSetValidator.requireClips(animationSet, requiredClipIds);
+            return animationSet;
         } catch (IOException exception) {
             throw new IllegalStateException("failed to close animation resource: " + resourcePath, exception);
         }

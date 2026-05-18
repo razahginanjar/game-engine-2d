@@ -36,8 +36,25 @@ public final class AnimationMetadataLoader {
                 requiredInt(object, "frame_height"),
                 requiredInt(object, "frame_count"),
                 requiredFloat(object, "fps"),
-                requiredBoolean(object, "loop")
+                requiredBoolean(object, "loop"),
+                readEvents(object)
         );
+    }
+
+    private List<AnimationFrameEvent> readEvents(JsonObject object) {
+        if (!object.has("events")) {
+            return List.of();
+        }
+        JsonArray values = object.getAsJsonArray("events");
+        List<AnimationFrameEvent> events = new ArrayList<>();
+        for (JsonElement value : values) {
+            JsonObject event = value.getAsJsonObject();
+            events.add(new AnimationFrameEvent(
+                    requiredInt(event, "frame"),
+                    requiredString(event, "id")
+            ));
+        }
+        return events;
     }
 
     private List<String> readTextureIds(JsonObject object) {

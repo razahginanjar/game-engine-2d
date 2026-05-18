@@ -6,6 +6,7 @@ import java.io.StringReader;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 final class AnimationMetadataLoaderTest {
     @Test
@@ -21,7 +22,10 @@ final class AnimationMetadataLoaderTest {
                       "frame_height": 80,
                       "frame_count": 10,
                       "fps": 12,
-                      "loop": true
+                      "loop": true,
+                      "events": [
+                        { "frame": 3, "id": "footstep" }
+                      ]
                     },
                     {
                       "id": "slime_move",
@@ -41,6 +45,7 @@ final class AnimationMetadataLoaderTest {
         AnimationClipDefinition run = set.clip("run");
         assertEquals("player_run", run.textureIdForFrame(3));
         assertEquals(360, run.sourceXForFrame(3));
+        assertTrue(run.hasEvent(3, "footstep"));
 
         AnimationClipDefinition slime = set.clip("slime_move");
         assertEquals("slime_00001", slime.textureIdForFrame(1));
@@ -61,6 +66,31 @@ final class AnimationMetadataLoaderTest {
                       "frame_count": 2,
                       "fps": 8,
                       "loop": true
+                    }
+                  ]
+                }
+                """;
+
+        assertThrows(IllegalArgumentException.class, () -> new AnimationMetadataLoader().load(new StringReader(json)));
+    }
+
+    @Test
+    void rejectsEventsOutsideClipFrameRange() {
+        String json = """
+                {
+                  "id": "sample",
+                  "clips": [
+                    {
+                      "id": "bad",
+                      "texture_id": "bad",
+                      "frame_width": 32,
+                      "frame_height": 32,
+                      "frame_count": 2,
+                      "fps": 8,
+                      "loop": true,
+                      "events": [
+                        { "frame": 2, "id": "invalid" }
+                      ]
                     }
                   ]
                 }

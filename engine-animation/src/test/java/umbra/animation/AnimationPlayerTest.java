@@ -21,7 +21,8 @@ final class AnimationPlayerTest {
                 32,
                 4,
                 10.0f,
-                true
+                true,
+                List.of()
         );
         AnimationPlayer player = new AnimationPlayer();
 
@@ -48,7 +49,8 @@ final class AnimationPlayerTest {
                 32,
                 3,
                 10.0f,
-                false
+                false,
+                List.of()
         );
         AnimationPlayer player = new AnimationPlayer();
 
