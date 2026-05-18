@@ -42,6 +42,14 @@ final class EnemyBrainTest {
     }
 
     @Test
+    void standardAttackWindowAllowsEightFramesAtFourteenFps() {
+        EnemyBrainConfig config = EnemyBrainConfig.standardMelee();
+        float lastFrameTime = 7.0f / 14.0f;
+
+        assertTrue(config.attackDurationSeconds() >= lastFrameTime);
+    }
+
+    @Test
     void evadesPlayerAttackWhenThreatenedAndRollSucceeds() {
         EnemyBrainConfig config = new EnemyBrainConfig(260.0f, 96.0f, 32.0f, 24.0f, 0.2f, 0.3f, 80.0f, 1.0f, 0.2f);
         EnemyBrain brain = new EnemyBrain(config, 7);

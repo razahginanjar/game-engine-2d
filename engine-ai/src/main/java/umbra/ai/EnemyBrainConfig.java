@@ -36,7 +36,7 @@ public record EnemyBrainConfig(
                 32.0f,
                 24.0f,
                 0.28f,
-                0.38f,
+                0.62f,
                 56.0f,
                 0.45f,
                 0.22f
@@ -50,7 +50,7 @@ public record EnemyBrainConfig(
                 42.0f,
                 30.0f,
                 0.20f,
-                0.34f,
+                0.62f,
                 70.0f,
                 0.55f,
                 0.24f
