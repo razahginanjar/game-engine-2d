@@ -83,6 +83,10 @@ public final class EnemyBrain {
         return state;
     }
 
+    public EnemyBrainConfig config() {
+        return config;
+    }
+
     public void reset() {
         state = EnemyAiState.PATROL;
         cautiousSeconds = 0.0f;

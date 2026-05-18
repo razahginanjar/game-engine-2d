@@ -78,6 +78,8 @@ final class TestRoomScene implements Scene {
     private static final DebugColor GRID_COLOR = new DebugColor(0.20f, 0.45f, 0.48f, 0.38f);
     private static final DebugColor DOOR_TRIGGER_COLOR = new DebugColor(0.10f, 0.85f, 1.0f, 0.85f);
     private static final DebugColor CAMERA_ZONE_COLOR = new DebugColor(0.95f, 0.80f, 0.20f, 0.55f);
+    private static final DebugColor ENEMY_VISION_COLOR = new DebugColor(0.45f, 0.70f, 1.0f, 0.40f);
+    private static final DebugColor ENEMY_ATTACK_RANGE_COLOR = new DebugColor(1.0f, 0.45f, 0.15f, 0.70f);
     private static final DebugColor PLAYER_OUTLINE_COLOR = new DebugColor(1.0f, 1.0f, 0.0f, 1.0f);
     private static final DebugColor HURTBOX_COLOR = new DebugColor(1.0f, 1.0f, 0.0f, 1.0f);
     private static final DebugColor SELECTED_ENEMY_COLOR = new DebugColor(0.15f, 0.85f, 1.0f, 1.0f);
@@ -396,6 +398,7 @@ final class TestRoomScene implements Scene {
         return switch (kind) {
             case SLIME -> createGroundEnemy(
                 kind,
+                EnemyArchetype.WALKER,
                 spawn,
                 slimeAnimationSet,
                 28.0f,
@@ -413,6 +416,7 @@ final class TestRoomScene implements Scene {
             );
             case GOBLIN -> createGroundEnemy(
                 kind,
+                EnemyArchetype.CHARGER,
                 spawn,
                 goblinAnimationSet,
                 26.0f,
@@ -430,6 +434,7 @@ final class TestRoomScene implements Scene {
             );
             case FLYING_EYE -> createFlyingEnemy(
                 kind,
+                EnemyArchetype.FLYER,
                 spawn,
                 flyingEyeAnimationSet,
                 30.0f,
@@ -447,6 +452,7 @@ final class TestRoomScene implements Scene {
             );
             case SKELETON -> createGroundEnemy(
                 kind,
+                EnemyArchetype.WALKER,
                 spawn,
                 skeletonAnimationSet,
                 24.0f,
@@ -464,6 +470,7 @@ final class TestRoomScene implements Scene {
             );
             case MUSHROOM -> createGroundEnemy(
                 kind,
+                EnemyArchetype.WALKER,
                 spawn,
                 mushroomAnimationSet,
                 30.0f,
@@ -507,6 +514,7 @@ final class TestRoomScene implements Scene {
 
     private EnemyActor createGroundEnemy(
             EnemyKind kind,
+            EnemyArchetype archetype,
             RoomDefinition.SpawnPoint spawn,
             AnimationSetDefinition animationSet,
             float bodyWidth,
@@ -525,6 +533,7 @@ final class TestRoomScene implements Scene {
         return new EnemyActor(
                 nextEnemyEntityId++,
                 kind,
+                archetype,
                 spawn.id(),
                 EnemyMovement.GROUND_PATROL,
                 spawn.x(),
@@ -548,6 +557,7 @@ final class TestRoomScene implements Scene {
 
     private EnemyActor createFlyingEnemy(
             EnemyKind kind,
+            EnemyArchetype archetype,
             RoomDefinition.SpawnPoint spawn,
             AnimationSetDefinition animationSet,
             float bodyWidth,
@@ -566,6 +576,7 @@ final class TestRoomScene implements Scene {
         return new EnemyActor(
                 nextEnemyEntityId++,
                 kind,
+                archetype,
                 spawn.id(),
                 EnemyMovement.FLYING_PATROL,
                 spawn.x(),
@@ -756,7 +767,7 @@ final class TestRoomScene implements Scene {
         }
 
         float speed = switch (decision.state()) {
-            case CHASE -> enemy.chaseSpeed;
+            case CHASE -> enemy.effectiveChaseSpeed();
             case EVADE -> enemy.evadeSpeed;
             default -> 0.0f;
         };
@@ -778,7 +789,7 @@ final class TestRoomScene implements Scene {
 
     private void updateFlyingEnemy(EnemyActor enemy, EnemyBrainDecision decision, float deltaSeconds) {
         if (decision.state() == EnemyAiState.CHASE || decision.state() == EnemyAiState.EVADE) {
-            float speed = decision.state() == EnemyAiState.CHASE ? enemy.chaseSpeed : enemy.evadeSpeed;
+            float speed = decision.state() == EnemyAiState.CHASE ? enemy.effectiveChaseSpeed() : enemy.evadeSpeed;
             float nextX = enemy.body.x() + decision.desiredDirection() * speed * deltaSeconds;
             float targetCenterY = decision.state() == EnemyAiState.CHASE
                     ? player.y() + player.height() * 0.5f
@@ -988,6 +999,7 @@ final class TestRoomScene implements Scene {
             }
         }
         if (selectedEnemy != null && enemies.contains(selectedEnemy)) {
+            drawSelectedEnemyAiDebug(drawList, selectedEnemy);
             debugGeometryBuilder.addAabb(drawList, selectedEnemy.body.bounds(), SELECTED_ENEMY_COLOR);
         }
 
@@ -997,6 +1009,32 @@ final class TestRoomScene implements Scene {
             debugGeometryBuilder.addAabb(drawList, hitbox, hitboxColor);
         }
         debugRenderer.render(drawList);
+    }
+
+    private void drawSelectedEnemyAiDebug(DebugDrawList drawList, EnemyActor enemy) {
+        EnemyBrainConfig brainConfig = enemy.brain.config();
+        float centerX = enemy.body.x() + enemy.body.width() * 0.5f;
+        float centerY = enemy.body.y() + enemy.body.height() * 0.5f;
+        debugGeometryBuilder.addAabb(
+                drawList,
+                new Aabb(
+                        centerX - brainConfig.visionRangeX(),
+                        centerY - brainConfig.visionRangeY(),
+                        brainConfig.visionRangeX() * 2.0f,
+                        brainConfig.visionRangeY() * 2.0f
+                ),
+                ENEMY_VISION_COLOR
+        );
+        debugGeometryBuilder.addAabb(
+                drawList,
+                new Aabb(
+                        centerX - brainConfig.attackRange(),
+                        enemy.body.y(),
+                        brainConfig.attackRange() * 2.0f,
+                        enemy.body.height()
+                ),
+                ENEMY_ATTACK_RANGE_COLOR
+        );
     }
 
     private void drawEditorOverlay() {
@@ -1028,6 +1066,7 @@ final class TestRoomScene implements Scene {
         if (selectedEnemy != null && enemies.contains(selectedEnemy)) {
             editorFont.draw(batch, "Selected: " + selectedEnemy.spawnId
                             + " #" + selectedEnemy.entityId
+                            + " " + selectedEnemy.archetype
                             + " " + selectedEnemy.brain.state(),
                     EDITOR_BUTTON_X,
                     helpY - 18.0f);
@@ -1176,9 +1215,16 @@ final class TestRoomScene implements Scene {
         FLYING_PATROL
     }
 
+    private enum EnemyArchetype {
+        WALKER,
+        FLYER,
+        CHARGER
+    }
+
     private static final class EnemyActor {
         private final int entityId;
         private final EnemyKind kind;
+        private final EnemyArchetype archetype;
         private final String spawnId;
         private final EnemyMovement movement;
         private final float spawnX;
@@ -1209,6 +1255,7 @@ final class TestRoomScene implements Scene {
         private EnemyActor(
                 int entityId,
                 EnemyKind kind,
+                EnemyArchetype archetype,
                 String spawnId,
                 EnemyMovement movement,
                 float spawnX,
@@ -1230,6 +1277,7 @@ final class TestRoomScene implements Scene {
         ) {
             this.entityId = entityId;
             this.kind = kind;
+            this.archetype = archetype;
             this.spawnId = spawnId;
             this.movement = movement;
             this.spawnX = spawnX;
@@ -1272,6 +1320,10 @@ final class TestRoomScene implements Scene {
                 return body.velocityX() > 0.0f;
             }
             return facingDirection > 0;
+        }
+
+        private float effectiveChaseSpeed() {
+            return archetype == EnemyArchetype.CHARGER ? chaseSpeed * 1.35f : chaseSpeed;
         }
 
         private HitboxInstance createAttackHitbox(AttackDefinition attack) {
