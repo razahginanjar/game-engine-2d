@@ -2,11 +2,15 @@ package umbra.sample;
 
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Input;
+import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.Camera;
 import com.badlogic.gdx.graphics.Texture;
+import com.badlogic.gdx.graphics.g2d.BitmapFont;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
 import com.badlogic.gdx.files.FileHandle;
+import com.badlogic.gdx.math.Matrix4;
+import com.badlogic.gdx.math.Vector3;
 import umbra.animation.AnimationClipDefinition;
 import umbra.animation.AnimationMetadataLoader;
 import umbra.animation.AnimationPlayer;
@@ -67,6 +71,7 @@ final class TestRoomScene implements Scene {
     private static final DebugColor GRID_COLOR = new DebugColor(0.20f, 0.45f, 0.48f, 0.38f);
     private static final DebugColor PLAYER_OUTLINE_COLOR = new DebugColor(1.0f, 1.0f, 0.0f, 1.0f);
     private static final DebugColor HURTBOX_COLOR = new DebugColor(1.0f, 1.0f, 0.0f, 1.0f);
+    private static final DebugColor SELECTED_ENEMY_COLOR = new DebugColor(0.15f, 0.85f, 1.0f, 1.0f);
     private static final DebugColor ATTACK_ACTIVE_COLOR = new DebugColor(1.0f, 0.0f, 0.0f, 1.0f);
     private static final DebugColor ATTACK_INACTIVE_COLOR = new DebugColor(0.7f, 0.15f, 0.15f, 0.55f);
     private static final DebugColor WHITE = new DebugColor(1.0f, 1.0f, 1.0f, 1.0f);
@@ -78,7 +83,16 @@ final class TestRoomScene implements Scene {
     private static final String PLAYER_HIT_TEXTURE = "player_hit";
     private static final String PLAYER_DEATH_TEXTURE = "player_death";
     private static final String SLIME_TEXTURE_PREFIX = "slime_green_move_";
+    private static final float EDITOR_BUTTON_X = 12.0f;
+    private static final float EDITOR_BUTTON_TOP_Y = 12.0f;
+    private static final float EDITOR_BUTTON_WIDTH = 132.0f;
+    private static final float EDITOR_BUTTON_HEIGHT = 24.0f;
+    private static final float EDITOR_BUTTON_GAP = 6.0f;
 
+    private final SpriteBatch batch;
+    private final ShapeRenderer shapes;
+    private final BitmapFont editorFont = new BitmapFont();
+    private final Matrix4 uiProjection = new Matrix4();
     private final LibGdxSpriteBatchRenderer spriteRenderer;
     private final LibGdxDebugShapeRenderer debugRenderer;
     private final DebugGeometryBuilder debugGeometryBuilder = new DebugGeometryBuilder();
@@ -123,9 +137,13 @@ final class TestRoomScene implements Scene {
     private boolean facingRight = true;
     private boolean attackFacingRight = true;
     private boolean previousJumpDown;
+    private int nextEnemyEntityId = FIRST_ENEMY_ENTITY_ID;
+    private EnemyActor selectedEnemy;
     private PlayerState state = PlayerState.IDLE;
 
     TestRoomScene(SpriteBatch spriteBatch, ShapeRenderer shapes, Camera camera, EngineConfig config) {
+        this.batch = spriteBatch;
+        this.shapes = shapes;
         this.spriteRenderer = new LibGdxSpriteBatchRenderer(spriteBatch);
         this.debugRenderer = new LibGdxDebugShapeRenderer(shapes);
         this.camera = camera;
@@ -157,10 +175,12 @@ final class TestRoomScene implements Scene {
     @Override
     public void onExit() {
         spriteRenderer.disposeTextures();
+        editorFont.dispose();
     }
 
     @Override
     public void update(float deltaSeconds) {
+        handleEditorInput();
         if (hitPauseTimer.paused()) {
             hitPauseTimer.update(deltaSeconds);
             clampCameraToRoom();
@@ -192,6 +212,7 @@ final class TestRoomScene implements Scene {
             for (EnemyActor enemy : enemies) {
                 enemy.reset();
             }
+            selectedEnemy = null;
             playerHealth.reset();
             hitPauseTimer.reset();
             playerHitStunTimer.reset();
@@ -227,6 +248,7 @@ final class TestRoomScene implements Scene {
         drawEnemies();
         drawPlayer();
         drawCombatDebug();
+        drawEditorOverlay();
         drawHud();
     }
 
@@ -256,11 +278,108 @@ final class TestRoomScene implements Scene {
                 .orElse(new RoomDefinition.SpawnPoint(spawnId, "enemy_spawn", fallbackX, fallbackY));
     }
 
+    private void handleEditorInput() {
+        if (!Gdx.input.isButtonJustPressed(Input.Buttons.LEFT)) {
+            return;
+        }
+
+        float screenX = Gdx.input.getX();
+        float screenY = Gdx.graphics.getHeight() - Gdx.input.getY();
+        EditorButtonAction action = editorButtonActionAt(screenX, screenY);
+        if (action != null) {
+            executeEditorAction(action);
+            return;
+        }
+
+        Vector3 worldClick = camera.unproject(new Vector3(Gdx.input.getX(), Gdx.input.getY(), 0.0f));
+        selectedEnemy = enemyAt(worldClick.x, worldClick.y);
+    }
+
+    private EditorButtonAction editorButtonActionAt(float screenX, float screenY) {
+        int row = 0;
+        for (EnemyKind kind : EnemyKind.values()) {
+            if (insideEditorButton(row, screenX, screenY)) {
+                return new EditorButtonAction(EditorAction.ADD, kind);
+            }
+            row++;
+        }
+        if (insideEditorButton(row, screenX, screenY)) {
+            return new EditorButtonAction(EditorAction.REMOVE_SELECTED, null);
+        }
+        return null;
+    }
+
+    private boolean insideEditorButton(int row, float screenX, float screenY) {
+        float y = editorButtonY(row);
+        return screenX >= EDITOR_BUTTON_X
+                && screenX <= EDITOR_BUTTON_X + EDITOR_BUTTON_WIDTH
+                && screenY >= y
+                && screenY <= y + EDITOR_BUTTON_HEIGHT;
+    }
+
+    private float editorButtonY(int row) {
+        return Gdx.graphics.getHeight()
+                - EDITOR_BUTTON_TOP_Y
+                - EDITOR_BUTTON_HEIGHT
+                - row * (EDITOR_BUTTON_HEIGHT + EDITOR_BUTTON_GAP);
+    }
+
+    private void executeEditorAction(EditorButtonAction action) {
+        if (action.action == EditorAction.ADD) {
+            spawnEnemyFromEditor(action.enemyKind);
+            return;
+        }
+        if (selectedEnemy != null) {
+            enemies.remove(selectedEnemy);
+            selectedEnemy = null;
+        }
+    }
+
+    private void spawnEnemyFromEditor(EnemyKind kind) {
+        float roomWidth = grid.widthTiles() * grid.tileSize();
+        float roomHeight = grid.heightTiles() * grid.tileSize();
+        float spawnX = Math.max(48.0f, Math.min(player.x() + 96.0f, roomWidth - 96.0f));
+        float spawnY = kind == EnemyKind.FLYING_EYE
+                ? Math.max(96.0f, Math.min(player.y() + 120.0f, roomHeight - 128.0f))
+                : Math.max(40.0f, player.y());
+        EnemyActor enemy = createEnemy(kind, kind.spawnPrefix + "_" + nextEnemyEntityId, spawnX, spawnY);
+        enemies.add(enemy);
+        selectedEnemy = enemy;
+    }
+
+    private EnemyActor enemyAt(float worldX, float worldY) {
+        for (int index = enemies.size() - 1; index >= 0; index--) {
+            EnemyActor enemy = enemies.get(index);
+            Aabb bounds = enemy.body.bounds();
+            if (!enemy.health.defeated()
+                    && worldX >= bounds.x()
+                    && worldX <= bounds.right()
+                    && worldY >= bounds.y()
+                    && worldY <= bounds.top()) {
+                return enemy;
+            }
+        }
+        return null;
+    }
+
     private void createEnemies() {
-        enemies.add(createGroundEnemy(
-                0,
-                "slime_a",
-                findSpawn("slime_a", 520.0f, 64.0f),
+        RoomDefinition.SpawnPoint slimeSpawn = findSpawn("slime_a", 520.0f, 64.0f);
+        enemies.add(createEnemy(EnemyKind.SLIME, slimeSpawn.id(), slimeSpawn.x(), slimeSpawn.y()));
+        RoomDefinition.SpawnPoint goblinSpawn = findSpawn("goblin_a", 690.0f, 64.0f);
+        enemies.add(createEnemy(EnemyKind.GOBLIN, goblinSpawn.id(), goblinSpawn.x(), goblinSpawn.y()));
+        RoomDefinition.SpawnPoint flyingEyeSpawn = findSpawn("flying_eye_a", 850.0f, 220.0f);
+        enemies.add(createEnemy(EnemyKind.FLYING_EYE, flyingEyeSpawn.id(), flyingEyeSpawn.x(), flyingEyeSpawn.y()));
+        RoomDefinition.SpawnPoint skeletonSpawn = findSpawn("skeleton_a", 940.0f, 64.0f);
+        enemies.add(createEnemy(EnemyKind.SKELETON, skeletonSpawn.id(), skeletonSpawn.x(), skeletonSpawn.y()));
+        RoomDefinition.SpawnPoint mushroomSpawn = findSpawn("mushroom_a", 1100.0f, 64.0f);
+        enemies.add(createEnemy(EnemyKind.MUSHROOM, mushroomSpawn.id(), mushroomSpawn.x(), mushroomSpawn.y()));
+    }
+
+    private EnemyActor createEnemy(EnemyKind kind, String spawnId, float x, float y) {
+        RoomDefinition.SpawnPoint spawn = new RoomDefinition.SpawnPoint(spawnId, "enemy_spawn", x, y);
+        return switch (kind) {
+            case SLIME -> createGroundEnemy(
+                spawn,
                 slimeAnimationSet,
                 28.0f,
                 18.0f,
@@ -270,11 +389,9 @@ final class TestRoomScene implements Scene {
                 -8.0f,
                 new DebugColor(0.30f, 0.85f, 0.32f, 1.0f),
                 PatrolControllerConfig.slimeDefaults()
-        ));
-        enemies.add(createGroundEnemy(
-                1,
-                "goblin_a",
-                findSpawn("goblin_a", 690.0f, 64.0f),
+            );
+            case GOBLIN -> createGroundEnemy(
+                spawn,
                 goblinAnimationSet,
                 26.0f,
                 42.0f,
@@ -284,11 +401,9 @@ final class TestRoomScene implements Scene {
                 -18.0f,
                 new DebugColor(0.35f, 0.75f, 0.28f, 1.0f),
                 new PatrolControllerConfig(70.0f, 1200.0f, 420.0f)
-        ));
-        enemies.add(createFlyingEnemy(
-                2,
-                "flying_eye_a",
-                findSpawn("flying_eye_a", 850.0f, 220.0f),
+            );
+            case FLYING_EYE -> createFlyingEnemy(
+                spawn,
                 flyingEyeAnimationSet,
                 30.0f,
                 26.0f,
@@ -298,11 +413,9 @@ final class TestRoomScene implements Scene {
                 -22.0f,
                 new DebugColor(0.90f, 0.25f, 0.55f, 1.0f),
                 64.0f
-        ));
-        enemies.add(createGroundEnemy(
-                3,
-                "skeleton_a",
-                findSpawn("skeleton_a", 940.0f, 64.0f),
+            );
+            case SKELETON -> createGroundEnemy(
+                spawn,
                 skeletonAnimationSet,
                 24.0f,
                 46.0f,
@@ -312,11 +425,9 @@ final class TestRoomScene implements Scene {
                 -22.0f,
                 new DebugColor(0.82f, 0.82f, 0.70f, 1.0f),
                 new PatrolControllerConfig(48.0f, 1200.0f, 420.0f)
-        ));
-        enemies.add(createGroundEnemy(
-                4,
-                "mushroom_a",
-                findSpawn("mushroom_a", 1100.0f, 64.0f),
+            );
+            case MUSHROOM -> createGroundEnemy(
+                spawn,
                 mushroomAnimationSet,
                 30.0f,
                 34.0f,
@@ -326,12 +437,11 @@ final class TestRoomScene implements Scene {
                 -18.0f,
                 new DebugColor(0.88f, 0.33f, 0.34f, 1.0f),
                 new PatrolControllerConfig(42.0f, 1200.0f, 420.0f)
-        ));
+            );
+        };
     }
 
     private EnemyActor createGroundEnemy(
-            int index,
-            String spawnId,
             RoomDefinition.SpawnPoint spawn,
             AnimationSetDefinition animationSet,
             float bodyWidth,
@@ -344,8 +454,8 @@ final class TestRoomScene implements Scene {
             PatrolControllerConfig patrolConfig
     ) {
         return new EnemyActor(
-                FIRST_ENEMY_ENTITY_ID + index,
-                spawnId,
+                nextEnemyEntityId++,
+                spawn.id(),
                 EnemyMovement.GROUND_PATROL,
                 spawn.x(),
                 spawn.y(),
@@ -363,8 +473,6 @@ final class TestRoomScene implements Scene {
     }
 
     private EnemyActor createFlyingEnemy(
-            int index,
-            String spawnId,
             RoomDefinition.SpawnPoint spawn,
             AnimationSetDefinition animationSet,
             float bodyWidth,
@@ -377,8 +485,8 @@ final class TestRoomScene implements Scene {
             float speed
     ) {
         return new EnemyActor(
-                FIRST_ENEMY_ENTITY_ID + index,
-                spawnId,
+                nextEnemyEntityId++,
+                spawn.id(),
                 EnemyMovement.FLYING_PATROL,
                 spawn.x(),
                 spawn.y(),
@@ -672,6 +780,9 @@ final class TestRoomScene implements Scene {
         for (EnemyActor enemy : enemies) {
             debugGeometryBuilder.addAabb(drawList, enemy.body.bounds(), HURTBOX_COLOR);
         }
+        if (selectedEnemy != null && enemies.contains(selectedEnemy)) {
+            debugGeometryBuilder.addAabb(drawList, selectedEnemy.body.bounds(), SELECTED_ENEMY_COLOR);
+        }
 
         if (currentAttackHitbox != null) {
             DebugColor hitboxColor = currentAttackHitbox.active() ? ATTACK_ACTIVE_COLOR : ATTACK_INACTIVE_COLOR;
@@ -679,6 +790,52 @@ final class TestRoomScene implements Scene {
             debugGeometryBuilder.addAabb(drawList, hitbox, hitboxColor);
         }
         debugRenderer.render(drawList);
+    }
+
+    private void drawEditorOverlay() {
+        uiProjection.setToOrtho2D(0.0f, 0.0f, Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
+        shapes.setProjectionMatrix(uiProjection);
+        batch.setProjectionMatrix(uiProjection);
+
+        shapes.begin(ShapeRenderer.ShapeType.Filled);
+        int row = 0;
+        for (EnemyKind kind : EnemyKind.values()) {
+            drawEditorButtonBackground(row, true);
+            row++;
+        }
+        drawEditorButtonBackground(row, selectedEnemy != null && enemies.contains(selectedEnemy));
+        shapes.end();
+
+        batch.begin();
+        editorFont.setColor(Color.WHITE);
+        row = 0;
+        for (EnemyKind kind : EnemyKind.values()) {
+            drawEditorButtonText(row, "Add " + kind.label);
+            row++;
+        }
+        editorFont.setColor(selectedEnemy == null ? Color.LIGHT_GRAY : Color.WHITE);
+        drawEditorButtonText(row, "Remove Selected");
+        editorFont.setColor(Color.WHITE);
+        float helpY = editorButtonY(row + 1) + 16.0f;
+        editorFont.draw(batch, "Click an enemy to select it. New enemies spawn near player.", EDITOR_BUTTON_X, helpY);
+        if (selectedEnemy != null && enemies.contains(selectedEnemy)) {
+            editorFont.draw(batch, "Selected: " + selectedEnemy.spawnId + " #" + selectedEnemy.entityId,
+                    EDITOR_BUTTON_X,
+                    helpY - 18.0f);
+        }
+        batch.end();
+    }
+
+    private void drawEditorButtonBackground(int row, boolean enabled) {
+        float y = editorButtonY(row);
+        shapes.setColor(enabled ? new Color(0.10f, 0.16f, 0.20f, 0.92f) : new Color(0.08f, 0.08f, 0.08f, 0.70f));
+        shapes.rect(EDITOR_BUTTON_X, y, EDITOR_BUTTON_WIDTH, EDITOR_BUTTON_HEIGHT);
+        shapes.setColor(new Color(0.25f, 0.55f, 0.62f, 0.95f));
+        shapes.rect(EDITOR_BUTTON_X, y, EDITOR_BUTTON_WIDTH, 2.0f);
+    }
+
+    private void drawEditorButtonText(int row, String text) {
+        editorFont.draw(batch, text, EDITOR_BUTTON_X + 8.0f, editorButtonY(row) + 17.0f);
     }
 
     private DebugColor playerColor() {
@@ -764,6 +921,30 @@ final class TestRoomScene implements Scene {
                 creatureFolder,
                 fileName
         )));
+    }
+
+    private enum EnemyKind {
+        SLIME("Slime", "slime"),
+        GOBLIN("Goblin", "goblin"),
+        FLYING_EYE("Flying Eye", "flying_eye"),
+        SKELETON("Skeleton", "skeleton"),
+        MUSHROOM("Mushroom", "mushroom");
+
+        private final String label;
+        private final String spawnPrefix;
+
+        EnemyKind(String label, String spawnPrefix) {
+            this.label = label;
+            this.spawnPrefix = spawnPrefix;
+        }
+    }
+
+    private enum EditorAction {
+        ADD,
+        REMOVE_SELECTED
+    }
+
+    private record EditorButtonAction(EditorAction action, EnemyKind enemyKind) {
     }
 
     private enum EnemyMovement {

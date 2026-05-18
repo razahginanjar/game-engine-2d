@@ -39,6 +39,8 @@ Controls:
 - `J`: attack
 - `R`: reset player, enemy, and combat state
 - `Esc`: quit
+- Left-side editor buttons: add slime, goblin, flying eye, skeleton, or mushroom near the player
+- Click an enemy body, then click `Remove Selected`: remove that specific enemy from the room
 
 ## Asset Policy
 
