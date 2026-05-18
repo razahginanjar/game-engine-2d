@@ -56,12 +56,13 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
 final class TestRoomScene implements Scene {
     private static final int PLAYER_ENTITY_ID = 1;
-    private static final int SLIME_ENTITY_ID = 2;
+    private static final int FIRST_ENEMY_ENTITY_ID = 100;
     private static final DebugColor SOLID_TILE_COLOR = new DebugColor(0.18f, 0.30f, 0.22f, 1.0f);
     private static final DebugColor GRID_COLOR = new DebugColor(0.20f, 0.45f, 0.48f, 0.38f);
     private static final DebugColor PLAYER_OUTLINE_COLOR = new DebugColor(1.0f, 1.0f, 0.0f, 1.0f);
@@ -87,16 +88,16 @@ final class TestRoomScene implements Scene {
     private final CollisionGrid grid;
     private final AnimationSetDefinition playerAnimationSet;
     private final AnimationSetDefinition slimeAnimationSet;
+    private final AnimationSetDefinition goblinAnimationSet;
+    private final AnimationSetDefinition flyingEyeAnimationSet;
+    private final AnimationSetDefinition skeletonAnimationSet;
+    private final AnimationSetDefinition mushroomAnimationSet;
     private final AnimationPlayer playerAnimator = new AnimationPlayer();
-    private final AnimationPlayer slimeAnimator = new AnimationPlayer();
     private final KinematicBody player;
     private final PlayerController controller;
     private final KinematicImpulseConfig playerImpulseConfig;
     private final KinematicImpulseMover playerKnockbackMover = new KinematicImpulseMover();
-    private final KinematicBody slime;
-    private final KinematicImpulseConfig slimeImpulseConfig;
-    private final PatrolController slimeController;
-    private final KinematicImpulseMover enemyKnockbackMover = new KinematicImpulseMover();
+    private final List<EnemyActor> enemies = new ArrayList<>();
     private final CombatResolver combatResolver = new CombatResolver();
     private final AttackTimelinePlayer attackTimeline = new AttackTimelinePlayer();
     private final AttackTimelineDefinition slashTimeline = new AttackTimelineDefinition(
@@ -105,8 +106,8 @@ final class TestRoomScene implements Scene {
             0.10f,
             0.18f
     );
-    private final AttackDefinition slimeContactAttack = new AttackDefinition(
-            "slime_contact",
+    private final AttackDefinition enemyContactAttack = new AttackDefinition(
+            "enemy_contact",
             1,
             120.0f,
             150.0f,
@@ -116,10 +117,8 @@ final class TestRoomScene implements Scene {
     );
     private final HitboxDefinition slashHitboxDefinition = new HitboxDefinition(34.0f, 28.0f, 0.0f, 5.0f);
     private final HealthPool playerHealth = new HealthPool(5, 0.75f);
-    private final HealthPool slimeHealth = new HealthPool(3, 0.0f);
     private final HitPauseTimer hitPauseTimer = new HitPauseTimer();
     private final HitStunTimer playerHitStunTimer = new HitStunTimer();
-    private final HitStunTimer slimeHitStunTimer = new HitStunTimer();
     private HitboxInstance currentAttackHitbox;
     private boolean facingRight = true;
     private boolean attackFacingRight = true;
@@ -133,6 +132,10 @@ final class TestRoomScene implements Scene {
         this.config = config;
         this.playerAnimationSet = loadAnimationSet("/metadata/player_knight.anim.json");
         this.slimeAnimationSet = loadAnimationSet("/metadata/slime_green.anim.json");
+        this.goblinAnimationSet = loadAnimationSet("/metadata/goblin.anim.json");
+        this.flyingEyeAnimationSet = loadAnimationSet("/metadata/flying_eye.anim.json");
+        this.skeletonAnimationSet = loadAnimationSet("/metadata/skeleton.anim.json");
+        this.mushroomAnimationSet = loadAnimationSet("/metadata/mushroom.anim.json");
         loadExternalSprites();
         this.room = loadRoom();
         this.grid = createGrid(room);
@@ -147,16 +150,8 @@ final class TestRoomScene implements Scene {
                 createdPlayerConfig.maxFallSpeedPixelsPerSecond()
         );
         this.controller = new PlayerController(createdPlayerConfig);
-        RoomDefinition.SpawnPoint slimeSpawn = findSlimeSpawn();
-        this.slime = new KinematicBody(slimeSpawn.x(), slimeSpawn.y(), 28.0f, 18.0f);
-        PatrolControllerConfig createdSlimePatrolConfig = PatrolControllerConfig.slimeDefaults();
-        this.slimeImpulseConfig = new KinematicImpulseConfig(
-                createdSlimePatrolConfig.gravityPixelsPerSecondSquared(),
-                createdSlimePatrolConfig.maxFallSpeedPixelsPerSecond()
-        );
-        this.slimeController = new PatrolController(createdSlimePatrolConfig, -1);
+        createEnemies();
         this.playerAnimator.play(playerAnimationSet.clip("idle"));
-        this.slimeAnimator.play(slimeAnimationSet.clip("move"));
     }
 
     @Override
@@ -194,20 +189,15 @@ final class TestRoomScene implements Scene {
             player.setPosition(playerSpawn.x(), playerSpawn.y());
             player.setVelocityX(0.0f);
             player.setVelocityY(0.0f);
-            RoomDefinition.SpawnPoint slimeSpawn = findSlimeSpawn();
-            slime.setPosition(slimeSpawn.x(), slimeSpawn.y());
-            slime.setVelocityX(0.0f);
-            slime.setVelocityY(0.0f);
-            slimeController.reset(-1);
+            for (EnemyActor enemy : enemies) {
+                enemy.reset();
+            }
             playerHealth.reset();
-            slimeHealth.reset();
             hitPauseTimer.reset();
             playerHitStunTimer.reset();
-            slimeHitStunTimer.reset();
             currentAttackHitbox = null;
             attackTimeline.reset();
             playerAnimator.restart(playerAnimationSet.clip("idle"));
-            slimeAnimator.restart(slimeAnimationSet.clip("move"));
         }
 
         if (Gdx.input.isKeyJustPressed(Input.Keys.J)
@@ -225,9 +215,7 @@ final class TestRoomScene implements Scene {
                 state = controller.update(input, player, grid, deltaSeconds);
             }
         }
-        if (!slimeHealth.defeated()) {
-            updateSlimeMovement(deltaSeconds);
-        }
+        updateEnemies(deltaSeconds);
         updateCombat(deltaSeconds);
         updateAnimations(deltaSeconds);
         clampCameraToRoom();
@@ -236,7 +224,7 @@ final class TestRoomScene implements Scene {
     @Override
     public void render() {
         drawRoom();
-        drawEnemy();
+        drawEnemies();
         drawPlayer();
         drawCombatDebug();
         drawHud();
@@ -261,11 +249,150 @@ final class TestRoomScene implements Scene {
         return createdGrid;
     }
 
-    private RoomDefinition.SpawnPoint findSlimeSpawn() {
+    private RoomDefinition.SpawnPoint findSpawn(String spawnId, float fallbackX, float fallbackY) {
         return room.spawns().stream()
-                .filter(spawn -> spawn.id().equals("slime_a"))
+                .filter(spawn -> spawn.id().equals(spawnId))
                 .findFirst()
-                .orElse(new RoomDefinition.SpawnPoint("slime_a", "enemy_spawn", 520.0f, 64.0f));
+                .orElse(new RoomDefinition.SpawnPoint(spawnId, "enemy_spawn", fallbackX, fallbackY));
+    }
+
+    private void createEnemies() {
+        enemies.add(createGroundEnemy(
+                0,
+                "slime_a",
+                findSpawn("slime_a", 520.0f, 64.0f),
+                slimeAnimationSet,
+                28.0f,
+                18.0f,
+                56.0f,
+                38.0f,
+                0.0f,
+                -8.0f,
+                new DebugColor(0.30f, 0.85f, 0.32f, 1.0f),
+                PatrolControllerConfig.slimeDefaults()
+        ));
+        enemies.add(createGroundEnemy(
+                1,
+                "goblin_a",
+                findSpawn("goblin_a", 690.0f, 64.0f),
+                goblinAnimationSet,
+                26.0f,
+                42.0f,
+                78.0f,
+                78.0f,
+                0.0f,
+                -18.0f,
+                new DebugColor(0.35f, 0.75f, 0.28f, 1.0f),
+                new PatrolControllerConfig(70.0f, 1200.0f, 420.0f)
+        ));
+        enemies.add(createFlyingEnemy(
+                2,
+                "flying_eye_a",
+                findSpawn("flying_eye_a", 850.0f, 220.0f),
+                flyingEyeAnimationSet,
+                30.0f,
+                26.0f,
+                72.0f,
+                72.0f,
+                0.0f,
+                -22.0f,
+                new DebugColor(0.90f, 0.25f, 0.55f, 1.0f),
+                64.0f
+        ));
+        enemies.add(createGroundEnemy(
+                3,
+                "skeleton_a",
+                findSpawn("skeleton_a", 940.0f, 64.0f),
+                skeletonAnimationSet,
+                24.0f,
+                46.0f,
+                82.0f,
+                82.0f,
+                0.0f,
+                -22.0f,
+                new DebugColor(0.82f, 0.82f, 0.70f, 1.0f),
+                new PatrolControllerConfig(48.0f, 1200.0f, 420.0f)
+        ));
+        enemies.add(createGroundEnemy(
+                4,
+                "mushroom_a",
+                findSpawn("mushroom_a", 1100.0f, 64.0f),
+                mushroomAnimationSet,
+                30.0f,
+                34.0f,
+                74.0f,
+                74.0f,
+                0.0f,
+                -18.0f,
+                new DebugColor(0.88f, 0.33f, 0.34f, 1.0f),
+                new PatrolControllerConfig(42.0f, 1200.0f, 420.0f)
+        ));
+    }
+
+    private EnemyActor createGroundEnemy(
+            int index,
+            String spawnId,
+            RoomDefinition.SpawnPoint spawn,
+            AnimationSetDefinition animationSet,
+            float bodyWidth,
+            float bodyHeight,
+            float drawWidth,
+            float drawHeight,
+            float drawOffsetX,
+            float drawOffsetY,
+            DebugColor fallbackColor,
+            PatrolControllerConfig patrolConfig
+    ) {
+        return new EnemyActor(
+                FIRST_ENEMY_ENTITY_ID + index,
+                spawnId,
+                EnemyMovement.GROUND_PATROL,
+                spawn.x(),
+                spawn.y(),
+                new KinematicBody(spawn.x(), spawn.y(), bodyWidth, bodyHeight),
+                animationSet,
+                new PatrolController(patrolConfig, -1),
+                new KinematicImpulseConfig(patrolConfig.gravityPixelsPerSecondSquared(), patrolConfig.maxFallSpeedPixelsPerSecond()),
+                0.0f,
+                drawWidth,
+                drawHeight,
+                drawOffsetX,
+                drawOffsetY,
+                fallbackColor
+        );
+    }
+
+    private EnemyActor createFlyingEnemy(
+            int index,
+            String spawnId,
+            RoomDefinition.SpawnPoint spawn,
+            AnimationSetDefinition animationSet,
+            float bodyWidth,
+            float bodyHeight,
+            float drawWidth,
+            float drawHeight,
+            float drawOffsetX,
+            float drawOffsetY,
+            DebugColor fallbackColor,
+            float speed
+    ) {
+        return new EnemyActor(
+                FIRST_ENEMY_ENTITY_ID + index,
+                spawnId,
+                EnemyMovement.FLYING_PATROL,
+                spawn.x(),
+                spawn.y(),
+                new KinematicBody(spawn.x(), spawn.y(), bodyWidth, bodyHeight),
+                animationSet,
+                null,
+                new KinematicImpulseConfig(800.0f, 360.0f),
+                speed,
+                drawWidth,
+                drawHeight,
+                drawOffsetX,
+                drawOffsetY,
+                fallbackColor
+        );
     }
 
     private HitboxInstance createPlayerSlashHitbox() {
@@ -281,7 +408,9 @@ final class TestRoomScene implements Scene {
 
     private void updateCombat(float deltaSeconds) {
         playerHealth.update(deltaSeconds);
-        slimeHealth.update(deltaSeconds);
+        for (EnemyActor enemy : enemies) {
+            enemy.health.update(deltaSeconds);
+        }
         attackTimeline.update(deltaSeconds);
 
         if (currentAttackHitbox != null) {
@@ -290,19 +419,24 @@ final class TestRoomScene implements Scene {
                     attackFacingRight ? FacingDirection.RIGHT : FacingDirection.LEFT
             ));
             currentAttackHitbox.setActive(attackTimeline.hitboxActive());
-            if (!slimeHealth.defeated()) {
-                List<DamageEvent> damageEvents = combatResolver.resolve(
-                        List.of(currentAttackHitbox),
-                        List.of(new HurtboxInstance(SLIME_ENTITY_ID, CombatTeam.ENEMY, slime.bounds(), true))
-                );
-                for (DamageEvent event : damageEvents) {
-                    DamageApplication application = slimeHealth.apply(event);
-                    if (application.applied()) {
-                        hitPauseTimer.trigger(event.hitPauseSeconds());
-                        slimeHitStunTimer.trigger(event.hitStunSeconds());
-                        slime.setVelocityX(event.knockbackX());
-                        slime.setVelocityY(event.knockbackY());
-                    }
+            List<HurtboxInstance> enemyHurtboxes = new ArrayList<>();
+            for (EnemyActor enemy : enemies) {
+                if (!enemy.health.defeated()) {
+                    enemyHurtboxes.add(new HurtboxInstance(enemy.entityId, CombatTeam.ENEMY, enemy.body.bounds(), true));
+                }
+            }
+            List<DamageEvent> damageEvents = combatResolver.resolve(List.of(currentAttackHitbox), enemyHurtboxes);
+            for (DamageEvent event : damageEvents) {
+                EnemyActor enemy = findEnemy(event.targetEntityId());
+                if (enemy == null) {
+                    continue;
+                }
+                DamageApplication application = enemy.health.apply(event);
+                if (application.applied()) {
+                    hitPauseTimer.trigger(event.hitPauseSeconds());
+                    enemy.hitStunTimer.trigger(event.hitStunSeconds());
+                    enemy.body.setVelocityX(event.knockbackX());
+                    enemy.body.setVelocityY(event.knockbackY());
                 }
             }
 
@@ -311,9 +445,15 @@ final class TestRoomScene implements Scene {
             }
         }
 
-        if (!playerHealth.defeated() && !slimeHealth.defeated()) {
+        if (!playerHealth.defeated()) {
+            List<HitboxInstance> enemyContactHitboxes = new ArrayList<>();
+            for (EnemyActor enemy : enemies) {
+                if (!enemy.health.defeated()) {
+                    enemyContactHitboxes.add(new HitboxInstance(enemy.entityId, CombatTeam.ENEMY, enemyContactAttack, enemy.body.bounds(), true));
+                }
+            }
             List<DamageEvent> damageEvents = combatResolver.resolve(
-                    List.of(new HitboxInstance(SLIME_ENTITY_ID, CombatTeam.ENEMY, slimeContactAttack, slime.bounds(), true)),
+                    enemyContactHitboxes,
                     List.of(new HurtboxInstance(PLAYER_ENTITY_ID, CombatTeam.PLAYER, player.bounds(), true))
             );
             for (DamageEvent event : damageEvents) {
@@ -325,6 +465,15 @@ final class TestRoomScene implements Scene {
                 }
             }
         }
+    }
+
+    private EnemyActor findEnemy(int entityId) {
+        for (EnemyActor enemy : enemies) {
+            if (enemy.entityId == entityId) {
+                return enemy;
+            }
+        }
+        return null;
     }
 
     private AnimationSetDefinition loadAnimationSet(String resourcePath) {
@@ -360,32 +509,49 @@ final class TestRoomScene implements Scene {
         }
     }
 
-    private void updateSlimeMovement(float deltaSeconds) {
-        if (!slimeHitStunTimer.stunned()) {
-            slimeController.update(slime, grid, deltaSeconds);
-            return;
-        }
+    private void updateEnemies(float deltaSeconds) {
+        for (EnemyActor enemy : enemies) {
+            if (enemy.health.defeated()) {
+                continue;
+            }
+            if (enemy.hitStunTimer.stunned()) {
+                enemy.knockbackMover.update(enemy.body, grid, enemy.impulseConfig, deltaSeconds);
+                enemy.hitStunTimer.update(deltaSeconds);
+                if (!enemy.hitStunTimer.stunned()) {
+                    enemy.body.setVelocityX(0.0f);
+                }
+                continue;
+            }
 
-        enemyKnockbackMover.update(
-                slime,
-                grid,
-                slimeImpulseConfig,
-                deltaSeconds
-        );
-
-        slimeHitStunTimer.update(deltaSeconds);
-        if (!slimeHitStunTimer.stunned()) {
-            slime.setVelocityX(0.0f);
+            if (enemy.movement == EnemyMovement.GROUND_PATROL) {
+                enemy.patrolController.update(enemy.body, grid, deltaSeconds);
+            } else {
+                updateFlyingEnemy(enemy, deltaSeconds);
+            }
         }
+    }
+
+    private void updateFlyingEnemy(EnemyActor enemy, float deltaSeconds) {
+        enemy.flightAgeSeconds += deltaSeconds;
+        float patrolHalfWidth = 96.0f;
+        float nextX = enemy.body.x() + enemy.flightDirection * enemy.flightSpeed * deltaSeconds;
+        if (nextX < enemy.spawnX - patrolHalfWidth || nextX > enemy.spawnX + patrolHalfWidth) {
+            enemy.flightDirection *= -1;
+            nextX = enemy.body.x() + enemy.flightDirection * enemy.flightSpeed * deltaSeconds;
+        }
+        float nextY = enemy.spawnY + (float) Math.sin(enemy.flightAgeSeconds * 3.0f) * 8.0f;
+        enemy.body.setPosition(nextX, nextY);
     }
 
     private void updateAnimations(float deltaSeconds) {
         playerAnimator.play(resolvePlayerClip());
         playerAnimator.update(deltaSeconds);
 
-        if (!slimeHealth.defeated()) {
-            slimeAnimator.play(slimeAnimationSet.clip("move"));
-            slimeAnimator.update(deltaSeconds);
+        for (EnemyActor enemy : enemies) {
+            if (!enemy.health.defeated()) {
+                enemy.animator.play(enemy.animationSet.clip("move"));
+                enemy.animator.update(deltaSeconds);
+            }
         }
     }
 
@@ -460,46 +626,52 @@ final class TestRoomScene implements Scene {
         debugRenderer.render(drawList);
     }
 
-    private void drawEnemy() {
-        AnimationClipDefinition clip = slimeAnimator.clip();
-        int frameIndex = slimeAnimator.frameIndex();
+    private void drawEnemies() {
+        for (EnemyActor enemy : enemies) {
+            if (drawEnemySprite(enemy)) {
+                continue;
+            }
+            DebugColor enemyColor = enemy.health.defeated()
+                    ? new DebugColor(0.15f, 0.18f, 0.15f, 1.0f)
+                    : enemy.fallbackColor;
+            DebugDrawList drawList = new DebugDrawList();
+            drawList.addRect(new DebugRect(enemy.body.x(), enemy.body.y(), enemy.body.width(), enemy.body.height(), enemyColor, DebugShapeStyle.FILLED));
+            debugRenderer.render(drawList);
+        }
+    }
+
+    private boolean drawEnemySprite(EnemyActor enemy) {
+        AnimationClipDefinition clip = enemy.animator.clip();
+        int frameIndex = enemy.animator.frameIndex();
         String textureId = clip == null ? null : clip.textureIdForFrame(frameIndex);
-        if (!slimeHealth.defeated() && textureId != null && spriteRenderer.hasTexture(textureId)) {
-            float drawWidth = 56.0f;
-            float drawHeight = 38.0f;
-            SpriteDrawList sprites = new SpriteDrawList();
-            sprites.add(new SpriteDrawCommand(
-                    textureId,
-                    clip.sourceXForFrame(frameIndex),
-                    clip.sourceYForFrame(frameIndex),
-                    clip.frameWidth(),
-                    clip.frameHeight(),
-                    slime.x() + slime.width() * 0.5f - drawWidth * 0.5f,
-                    slime.y() - 8.0f,
-                    drawWidth,
-                    drawHeight,
-                    slimeController.facingRight(),
-                    false,
-                    WHITE
-            ));
-            spriteRenderer.render(sprites);
-            return;
+        if (enemy.health.defeated() || textureId == null || !spriteRenderer.hasTexture(textureId)) {
+            return false;
         }
 
-        DebugColor enemyColor;
-        if (!slimeHealth.defeated()) {
-            enemyColor = new DebugColor(0.30f, 0.85f, 0.32f, 1.0f);
-        } else {
-            enemyColor = new DebugColor(0.15f, 0.18f, 0.15f, 1.0f);
-        }
-        DebugDrawList drawList = new DebugDrawList();
-        drawList.addRect(new DebugRect(slime.x(), slime.y(), slime.width(), slime.height(), enemyColor, DebugShapeStyle.FILLED));
-        debugRenderer.render(drawList);
+        SpriteDrawList sprites = new SpriteDrawList();
+        sprites.add(new SpriteDrawCommand(
+                textureId,
+                clip.sourceXForFrame(frameIndex),
+                clip.sourceYForFrame(frameIndex),
+                clip.frameWidth(),
+                clip.frameHeight(),
+                enemy.body.x() + enemy.body.width() * 0.5f - enemy.drawWidth * 0.5f + enemy.drawOffsetX,
+                enemy.body.y() + enemy.drawOffsetY,
+                enemy.drawWidth,
+                enemy.drawHeight,
+                enemy.facingRight(),
+                false,
+                WHITE
+        ));
+        spriteRenderer.render(sprites);
+        return true;
     }
 
     private void drawCombatDebug() {
         DebugDrawList drawList = new DebugDrawList();
-        debugGeometryBuilder.addAabb(drawList, slime.bounds(), HURTBOX_COLOR);
+        for (EnemyActor enemy : enemies) {
+            debugGeometryBuilder.addAabb(drawList, enemy.body.bounds(), HURTBOX_COLOR);
+        }
 
         if (currentAttackHitbox != null) {
             DebugColor hitboxColor = currentAttackHitbox.active() ? ATTACK_ACTIVE_COLOR : ATTACK_INACTIVE_COLOR;
@@ -560,6 +732,10 @@ final class TestRoomScene implements Scene {
                     "SlimeBasic_" + String.format("%05d", frame) + ".png"
             )));
         }
+        registerFantasyMonsterSheet(assetRoot, "goblin_move", "Goblin", "Run-sheet.png");
+        registerFantasyMonsterSheet(assetRoot, "flying_eye_move", "Flying eye", "Flight-sheet.png");
+        registerFantasyMonsterSheet(assetRoot, "skeleton_move", "Skeleton", "Walk-sheet.png");
+        registerFantasyMonsterSheet(assetRoot, "mushroom_move", "Mushroom", "Run-sheet.png");
     }
 
     private Path playerSheetPath(Path assetRoot, String fileName) {
@@ -580,15 +756,119 @@ final class TestRoomScene implements Scene {
         }
     }
 
+    private void registerFantasyMonsterSheet(Path assetRoot, String textureId, String creatureFolder, String fileName) {
+        registerTextureIfPresent(textureId, assetRoot.resolve(Path.of(
+                "monster",
+                "Monsters_Creatures_Fantasy",
+                "Monsters_Creatures_Fantasy",
+                creatureFolder,
+                fileName
+        )));
+    }
+
+    private enum EnemyMovement {
+        GROUND_PATROL,
+        FLYING_PATROL
+    }
+
+    private static final class EnemyActor {
+        private final int entityId;
+        private final String spawnId;
+        private final EnemyMovement movement;
+        private final float spawnX;
+        private final float spawnY;
+        private final KinematicBody body;
+        private final AnimationSetDefinition animationSet;
+        private final AnimationPlayer animator = new AnimationPlayer();
+        private final PatrolController patrolController;
+        private final KinematicImpulseMover knockbackMover = new KinematicImpulseMover();
+        private final KinematicImpulseConfig impulseConfig;
+        private final HealthPool health = new HealthPool(3, 0.0f);
+        private final HitStunTimer hitStunTimer = new HitStunTimer();
+        private final float flightSpeed;
+        private final float drawWidth;
+        private final float drawHeight;
+        private final float drawOffsetX;
+        private final float drawOffsetY;
+        private final DebugColor fallbackColor;
+        private int flightDirection = -1;
+        private float flightAgeSeconds;
+
+        private EnemyActor(
+                int entityId,
+                String spawnId,
+                EnemyMovement movement,
+                float spawnX,
+                float spawnY,
+                KinematicBody body,
+                AnimationSetDefinition animationSet,
+                PatrolController patrolController,
+                KinematicImpulseConfig impulseConfig,
+                float flightSpeed,
+                float drawWidth,
+                float drawHeight,
+                float drawOffsetX,
+                float drawOffsetY,
+                DebugColor fallbackColor
+        ) {
+            this.entityId = entityId;
+            this.spawnId = spawnId;
+            this.movement = movement;
+            this.spawnX = spawnX;
+            this.spawnY = spawnY;
+            this.body = body;
+            this.animationSet = animationSet;
+            this.patrolController = patrolController;
+            this.impulseConfig = impulseConfig;
+            this.flightSpeed = flightSpeed;
+            this.drawWidth = drawWidth;
+            this.drawHeight = drawHeight;
+            this.drawOffsetX = drawOffsetX;
+            this.drawOffsetY = drawOffsetY;
+            this.fallbackColor = fallbackColor;
+            this.animator.play(animationSet.clip("move"));
+        }
+
+        private void reset() {
+            body.setPosition(spawnX, spawnY);
+            body.setVelocityX(0.0f);
+            body.setVelocityY(0.0f);
+            health.reset();
+            hitStunTimer.reset();
+            animator.restart(animationSet.clip("move"));
+            flightDirection = -1;
+            flightAgeSeconds = 0.0f;
+            if (patrolController != null) {
+                patrolController.reset(-1);
+            }
+        }
+
+        private boolean facingRight() {
+            if (movement == EnemyMovement.FLYING_PATROL) {
+                return flightDirection > 0;
+            }
+            return patrolController != null && patrolController.facingRight();
+        }
+    }
+
     private void drawHud() {
         Gdx.graphics.setTitle("Umbra2D | " + room.roomId()
                 + " | " + state
                 + " | attack=" + attackTimeline.phase()
                 + " | hitPause=" + hitPauseTimer.paused()
                 + " | playerStun=" + playerHitStunTimer.stunned()
-                + " | slimeStun=" + slimeHitStunTimer.stunned()
                 + " | playerHP=" + playerHealth.currentHealth()
-                + " | slimeHP=" + slimeHealth.currentHealth()
+                + " | enemiesAlive=" + aliveEnemyCount()
                 + " | A/D move, Space jump, J attack, R reset, Esc quit");
+    }
+
+    private int aliveEnemyCount() {
+        int count = 0;
+        for (EnemyActor enemy : enemies) {
+            if (!enemy.health.defeated()) {
+                count++;
+            }
+        }
+        return count;
     }
 }

@@ -1,0 +1,14 @@
+{
+  "id": "flying_eye",
+  "clips": [
+    {
+      "id": "move",
+      "texture_id": "flying_eye_move",
+      "frame_width": 150,
+      "frame_height": 150,
+      "frame_count": 8,
+      "fps": 10,
+      "loop": true
+    }
+  ]
+}

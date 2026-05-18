@@ -49,6 +49,7 @@ Initial source asset mapping:
 - Knight: `../assets/char/FreeKnight_v1/Colour1/NoOutline/120x80_PNGSheets`
 - Mossy tiles: `../assets/tiles/Mossy Tileset`
 - Slimes: `../assets/monster/Slimes`
+- Fantasy creatures: `../assets/monster/Monsters_Creatures_Fantasy/Monsters_Creatures_Fantasy`
 
 Do not commit local absolute paths, credentials, generated build folders, IDE state, or raw asset archives unless licensing and packaging are explicitly approved.
 
@@ -82,8 +83,8 @@ Implemented first because it blocks every later gameplay feature:
 - Deterministic hit-pause timer for impact freeze frames.
 - Deterministic hit-stun timer for post-hit action lock.
 - Metadata-driven animation clips for sheet-based sprites and image-sequence sprites.
-- Animated sample sprites for player idle/run/jump/fall/attack/hit/death and slime movement.
-- Graybox combat sample with player slash, moving slime patrol, anchored hitbox movement, contact damage, knockback, HP state, hit pause, hit stun, active hitbox debug, slime hurtbox, and reset.
+- Animated sample sprites for player idle/run/jump/fall/attack/hit/death, slime movement, goblin movement, flying eye flight, skeleton walk, and mushroom movement.
+- Graybox combat sample with player slash, multiple moving enemies, anchored hitbox movement, contact damage, knockback, HP state, hit pause, hit stun, active hitbox debug, enemy hurtboxes, and reset.
 
 Sprite assets are loaded from `../assets` by default. Override with:
 

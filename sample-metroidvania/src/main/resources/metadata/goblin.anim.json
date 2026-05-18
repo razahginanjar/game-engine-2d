@@ -1,0 +1,14 @@
+{
+  "id": "goblin",
+  "clips": [
+    {
+      "id": "move",
+      "texture_id": "goblin_move",
+      "frame_width": 150,
+      "frame_height": 150,
+      "frame_count": 8,
+      "fps": 10,
+      "loop": true
+    }
+  ]
+}

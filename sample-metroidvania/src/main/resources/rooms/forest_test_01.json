@@ -23,7 +23,11 @@
   ],
   "spawns": [
     { "id": "entry_left", "type": "player_spawn", "x": 96, "y": 160 },
-    { "id": "slime_a", "type": "enemy_spawn", "x": 520, "y": 64 }
+    { "id": "slime_a", "type": "enemy_spawn", "x": 520, "y": 64 },
+    { "id": "goblin_a", "type": "enemy_spawn", "x": 690, "y": 64 },
+    { "id": "flying_eye_a", "type": "enemy_spawn", "x": 850, "y": 220 },
+    { "id": "skeleton_a", "type": "enemy_spawn", "x": 940, "y": 64 },
+    { "id": "mushroom_a", "type": "enemy_spawn", "x": 1100, "y": 64 }
   ],
   "doors": [
     { "id": "right_exit", "x": 1248, "y": 32, "w": 24, "h": 96, "target_room": "self", "target_spawn": "entry_left" }
