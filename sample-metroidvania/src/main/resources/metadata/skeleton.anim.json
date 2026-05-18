@@ -9,6 +9,42 @@
       "frame_count": 4,
       "fps": 8,
       "loop": true
+    },
+    {
+      "id": "attack",
+      "texture_id": "skeleton_attack",
+      "frame_width": 150,
+      "frame_height": 150,
+      "frame_count": 8,
+      "fps": 14,
+      "loop": false
+    },
+    {
+      "id": "take_hit",
+      "texture_id": "skeleton_take_hit",
+      "frame_width": 150,
+      "frame_height": 150,
+      "frame_count": 4,
+      "fps": 12,
+      "loop": false
+    },
+    {
+      "id": "death",
+      "texture_id": "skeleton_death",
+      "frame_width": 150,
+      "frame_height": 150,
+      "frame_count": 4,
+      "fps": 10,
+      "loop": false
+    },
+    {
+      "id": "shield",
+      "texture_id": "skeleton_shield",
+      "frame_width": 150,
+      "frame_height": 150,
+      "frame_count": 4,
+      "fps": 8,
+      "loop": true
     }
   ]
 }

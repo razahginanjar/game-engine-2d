@@ -757,11 +757,43 @@ final class TestRoomScene implements Scene {
         playerAnimator.update(deltaSeconds);
 
         for (EnemyActor enemy : enemies) {
-            if (!enemy.health.defeated()) {
-                enemy.animator.play(enemy.animationSet.clip("move"));
-                enemy.animator.update(deltaSeconds);
+            playEnemyClip(enemy, resolveEnemyClip(enemy));
+            enemy.animator.update(deltaSeconds);
+        }
+    }
+
+    private void playEnemyClip(EnemyActor enemy, AnimationClipDefinition clip) {
+        AnimationClipDefinition currentClip = enemy.animator.clip();
+        if (currentClip == null || !currentClip.id().equals(clip.id())) {
+            enemy.animator.restart(clip);
+            return;
+        }
+        enemy.animator.play(clip);
+    }
+
+    private AnimationClipDefinition resolveEnemyClip(EnemyActor enemy) {
+        if (enemy.health.defeated()) {
+            return clipOrMove(enemy.animationSet, "death");
+        }
+        if (enemy.hitStunTimer.stunned()) {
+            return clipOrMove(enemy.animationSet, "take_hit");
+        }
+        if (enemy.brain.state() == EnemyAiState.ATTACK) {
+            return clipOrMove(enemy.animationSet, "attack");
+        }
+        if (enemy.brain.state() == EnemyAiState.CAUTIOUS) {
+            return clipOrMove(enemy.animationSet, "idle");
+        }
+        return enemy.animationSet.clip("move");
+    }
+
+    private AnimationClipDefinition clipOrMove(AnimationSetDefinition animationSet, String clipId) {
+        for (AnimationClipDefinition clip : animationSet.clips()) {
+            if (clip.id().equals(clipId)) {
+                return clip;
             }
         }
+        return animationSet.clip("move");
     }
 
     private AnimationClipDefinition resolvePlayerClip() {
@@ -853,7 +885,7 @@ final class TestRoomScene implements Scene {
         AnimationClipDefinition clip = enemy.animator.clip();
         int frameIndex = enemy.animator.frameIndex();
         String textureId = clip == null ? null : clip.textureIdForFrame(frameIndex);
-        if (enemy.health.defeated() || textureId == null || !spriteRenderer.hasTexture(textureId)) {
+        if (textureId == null || !spriteRenderer.hasTexture(textureId)) {
             return false;
         }
 
@@ -993,9 +1025,24 @@ final class TestRoomScene implements Scene {
             )));
         }
         registerFantasyMonsterSheet(assetRoot, "goblin_move", "Goblin", "Run-sheet.png");
+        registerFantasyMonsterSheet(assetRoot, "goblin_idle", "Goblin", "Idle-sheet.png");
+        registerFantasyMonsterSheet(assetRoot, "goblin_attack", "Goblin", "Attack-sheet.png");
+        registerFantasyMonsterSheet(assetRoot, "goblin_take_hit", "Goblin", "Take Hit-sheet.png");
+        registerFantasyMonsterSheet(assetRoot, "goblin_death", "Goblin", "Death-sheet.png");
         registerFantasyMonsterSheet(assetRoot, "flying_eye_move", "Flying eye", "Flight-sheet.png");
+        registerFantasyMonsterSheet(assetRoot, "flying_eye_attack", "Flying eye", "Attack-sheet.png");
+        registerFantasyMonsterSheet(assetRoot, "flying_eye_take_hit", "Flying eye", "Take Hit-sheet.png");
+        registerFantasyMonsterSheet(assetRoot, "flying_eye_death", "Flying eye", "Death-sheet.png");
         registerFantasyMonsterSheet(assetRoot, "skeleton_move", "Skeleton", "Walk-sheet.png");
+        registerFantasyMonsterSheet(assetRoot, "skeleton_attack", "Skeleton", "Attack-sheet.png");
+        registerFantasyMonsterSheet(assetRoot, "skeleton_take_hit", "Skeleton", "Take Hit-sheet.png");
+        registerFantasyMonsterSheet(assetRoot, "skeleton_death", "Skeleton", "Death-sheet.png");
+        registerFantasyMonsterSheet(assetRoot, "skeleton_shield", "Skeleton", "Shield-sheet.png");
         registerFantasyMonsterSheet(assetRoot, "mushroom_move", "Mushroom", "Run-sheet.png");
+        registerFantasyMonsterSheet(assetRoot, "mushroom_idle", "Mushroom", "Idle-sheet.png");
+        registerFantasyMonsterSheet(assetRoot, "mushroom_attack", "Mushroom", "Attack-sheet.png");
+        registerFantasyMonsterSheet(assetRoot, "mushroom_take_hit", "Mushroom", "Take Hit-sheet.png");
+        registerFantasyMonsterSheet(assetRoot, "mushroom_death", "Mushroom", "Death-sheet.png");
     }
 
     private Path playerSheetPath(Path assetRoot, String fileName) {

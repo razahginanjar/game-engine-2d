@@ -9,6 +9,42 @@
       "frame_count": 8,
       "fps": 10,
       "loop": true
+    },
+    {
+      "id": "idle",
+      "texture_id": "mushroom_idle",
+      "frame_width": 150,
+      "frame_height": 150,
+      "frame_count": 4,
+      "fps": 8,
+      "loop": true
+    },
+    {
+      "id": "attack",
+      "texture_id": "mushroom_attack",
+      "frame_width": 150,
+      "frame_height": 150,
+      "frame_count": 8,
+      "fps": 14,
+      "loop": false
+    },
+    {
+      "id": "take_hit",
+      "texture_id": "mushroom_take_hit",
+      "frame_width": 150,
+      "frame_height": 150,
+      "frame_count": 4,
+      "fps": 12,
+      "loop": false
+    },
+    {
+      "id": "death",
+      "texture_id": "mushroom_death",
+      "frame_width": 150,
+      "frame_height": 150,
+      "frame_count": 4,
+      "fps": 10,
+      "loop": false
     }
   ]
 }

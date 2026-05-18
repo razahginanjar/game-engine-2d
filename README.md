@@ -86,7 +86,8 @@ Implemented first because it blocks every later gameplay feature:
 - Deterministic hit-pause timer for impact freeze frames.
 - Deterministic hit-stun timer for post-hit action lock.
 - Metadata-driven animation clips for sheet-based sprites and image-sequence sprites.
-- Animated sample sprites for player idle/run/jump/fall/attack/hit/death, slime movement, goblin movement, flying eye flight, skeleton walk, and mushroom movement.
+- Animated sample sprites for player idle/run/jump/fall/attack/hit/death; slime movement; and fantasy monster move/attack/take-hit/death clips where source assets provide them.
+- Skeleton shield animation metadata is registered for the next guard-behavior increment.
 - Enemy AI vision behavior: patrol outside sight, chase visible player, become cautious at close range, attack after windup, and probabilistically evade nearby player attacks.
 - Graybox combat sample with player slash, multiple moving enemies, anchored hitbox movement, contact damage, knockback, HP state, hit pause, hit stun, active hitbox debug, enemy hurtboxes, and reset.
 
