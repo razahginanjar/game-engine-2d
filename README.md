@@ -38,6 +38,8 @@ Controls:
 - `Space` or `Up`: jump
 - `J`: attack
 - `R`: reset player, enemy, and combat state
+- Walk into cyan door triggers: move between test rooms
+- Walk through green checkpoint triggers: update death respawn point
 - `Esc`: quit
 - Left-side editor buttons: add slime, goblin, flying eye, skeleton, or mushroom near the player
 - Click an enemy body, then click `Remove Selected`: remove that specific enemy from the room
@@ -90,6 +92,9 @@ Implemented first because it blocks every later gameplay feature:
 - Skeleton shield animation metadata is registered for the next guard-behavior increment.
 - Enemy AI vision behavior: patrol outside sight, chase visible player, become cautious at close range, attack after windup, and probabilistically evade nearby player attacks.
 - Enemy attack damage uses facing-aware attack hitboxes: goblin/skeleton weapon enemies reach about one player-width forward, while slime/flying eye/mushroom use smaller close-range hitboxes.
+- Animation attack timing can be driven by frame events in animation metadata.
+- Door and checkpoint triggers are visible in the debug room layer.
+- The sample can transition between two test rooms and respawn the player at the latest checkpoint after death or `R`.
 - Graybox combat sample with player slash, multiple moving enemies, anchored hitbox movement, contact damage, knockback, HP state, hit pause, hit stun, active hitbox debug, enemy hurtboxes, and reset.
 
 Sprite assets are loaded from `../assets` by default. Override with:

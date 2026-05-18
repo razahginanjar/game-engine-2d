@@ -78,6 +78,7 @@ final class TestRoomScene implements Scene {
     private static final DebugColor GRID_COLOR = new DebugColor(0.20f, 0.45f, 0.48f, 0.38f);
     private static final DebugColor DOOR_TRIGGER_COLOR = new DebugColor(0.10f, 0.85f, 1.0f, 0.85f);
     private static final DebugColor CAMERA_ZONE_COLOR = new DebugColor(0.95f, 0.80f, 0.20f, 0.55f);
+    private static final DebugColor CHECKPOINT_COLOR = new DebugColor(0.25f, 1.0f, 0.55f, 0.85f);
     private static final DebugColor ENEMY_VISION_COLOR = new DebugColor(0.45f, 0.70f, 1.0f, 0.40f);
     private static final DebugColor ENEMY_ATTACK_RANGE_COLOR = new DebugColor(1.0f, 0.45f, 0.15f, 0.70f);
     private static final DebugColor PLAYER_OUTLINE_COLOR = new DebugColor(1.0f, 1.0f, 0.0f, 1.0f);
@@ -100,6 +101,11 @@ final class TestRoomScene implements Scene {
     private static final float EDITOR_BUTTON_WIDTH = 132.0f;
     private static final float EDITOR_BUTTON_HEIGHT = 24.0f;
     private static final float EDITOR_BUTTON_GAP = 6.0f;
+    private static final String START_ROOM_ID = "forest_test_01";
+    private static final String DEFAULT_PLAYER_SPAWN_ID = "entry_left";
+    private static final float CHECKPOINT_TRIGGER_WIDTH = 40.0f;
+    private static final float CHECKPOINT_TRIGGER_HEIGHT = 48.0f;
+    private static final float DEATH_RESPAWN_DELAY_SECONDS = 1.0f;
 
     private final SpriteBatch batch;
     private final ShapeRenderer shapes;
@@ -111,8 +117,8 @@ final class TestRoomScene implements Scene {
     private final AnimationSetValidator animationSetValidator = new AnimationSetValidator();
     private final Camera camera;
     private final EngineConfig config;
-    private final RoomDefinition room;
-    private final CollisionGrid grid;
+    private RoomDefinition room;
+    private CollisionGrid grid;
     private final AnimationSetDefinition playerAnimationSet;
     private final AnimationSetDefinition slimeAnimationSet;
     private final AnimationSetDefinition goblinAnimationSet;
@@ -153,6 +159,10 @@ final class TestRoomScene implements Scene {
     private int nextEnemyEntityId = FIRST_ENEMY_ENTITY_ID;
     private EnemyActor selectedEnemy;
     private PlayerState state = PlayerState.IDLE;
+    private String currentRoomId = START_ROOM_ID;
+    private String checkpointRoomId = START_ROOM_ID;
+    private String checkpointSpawnId = DEFAULT_PLAYER_SPAWN_ID;
+    private float deathRespawnSeconds;
 
     TestRoomScene(SpriteBatch spriteBatch, ShapeRenderer shapes, Camera camera, EngineConfig config) {
         this.batch = spriteBatch;
@@ -173,12 +183,9 @@ final class TestRoomScene implements Scene {
         this.mushroomAnimationSet = loadAnimationSet("/metadata/mushroom.anim.json",
                 List.of("move", "idle", "attack", "take_hit", "death"));
         loadExternalSprites();
-        this.room = loadRoom();
+        this.room = loadRoom(currentRoomId);
         this.grid = createGrid(room);
-        RoomDefinition.SpawnPoint playerSpawn = room.spawns().stream()
-                .filter(spawn -> spawn.type().equals("player_spawn"))
-                .findFirst()
-                .orElseThrow();
+        RoomDefinition.SpawnPoint playerSpawn = findSpawn(DEFAULT_PLAYER_SPAWN_ID, 96.0f, 160.0f);
         this.player = new KinematicBody(playerSpawn.x(), playerSpawn.y(), 18.0f, 38.0f);
         PlayerControllerConfig createdPlayerConfig = PlayerControllerConfig.metroidvaniaDefaults();
         this.playerImpulseConfig = new KinematicImpulseConfig(
@@ -220,23 +227,7 @@ final class TestRoomScene implements Scene {
         previousJumpDown = jumpDown;
 
         if (Gdx.input.isKeyJustPressed(Input.Keys.R)) {
-            RoomDefinition.SpawnPoint playerSpawn = room.spawns().stream()
-                    .filter(spawn -> spawn.type().equals("player_spawn"))
-                    .findFirst()
-                    .orElseThrow();
-            player.setPosition(playerSpawn.x(), playerSpawn.y());
-            player.setVelocityX(0.0f);
-            player.setVelocityY(0.0f);
-            for (EnemyActor enemy : enemies) {
-                enemy.reset();
-            }
-            selectedEnemy = null;
-            playerHealth.reset();
-            hitPauseTimer.reset();
-            playerHitStunTimer.reset();
-            currentAttackHitbox = null;
-            attackTimeline.reset();
-            playerAnimator.restart(playerAnimationSet.clip("idle"));
+            respawnAtCheckpoint();
         }
 
         if (Gdx.input.isKeyJustPressed(Input.Keys.J)
@@ -257,6 +248,9 @@ final class TestRoomScene implements Scene {
         updateEnemies(deltaSeconds);
         updateAnimations(deltaSeconds);
         updateCombat(deltaSeconds);
+        updateCheckpoints();
+        updateDoorTransitions();
+        updateDeathRespawn(deltaSeconds);
         clampCameraToRoom();
     }
 
@@ -270,9 +264,9 @@ final class TestRoomScene implements Scene {
         drawHud();
     }
 
-    private RoomDefinition loadRoom() {
+    private RoomDefinition loadRoom(String roomId) {
         try (InputStreamReader reader = new InputStreamReader(
-                Objects.requireNonNull(TestRoomScene.class.getResourceAsStream("/rooms/forest_test_01.json")),
+                Objects.requireNonNull(TestRoomScene.class.getResourceAsStream("/rooms/" + roomId + ".json")),
                 StandardCharsets.UTF_8
         )) {
             return new RoomLoader().load(reader);
@@ -287,6 +281,97 @@ final class TestRoomScene implements Scene {
             createdGrid.setSolid(tile.x(), tile.y(), true);
         }
         return createdGrid;
+    }
+
+    private void updateDoorTransitions() {
+        if (playerHealth.defeated()) {
+            return;
+        }
+        Aabb playerBounds = player.bounds();
+        for (RoomDefinition.DoorDefinition door : room.doors()) {
+            Aabb doorBounds = new Aabb(door.x(), door.y(), door.width(), door.height());
+            if (intersects(playerBounds, doorBounds)) {
+                String targetRoomId = door.targetRoom().equals("self") ? currentRoomId : door.targetRoom();
+                transitionToRoom(targetRoomId, door.targetSpawn());
+                return;
+            }
+        }
+    }
+
+    private void transitionToRoom(String roomId, String spawnId) {
+        currentRoomId = roomId;
+        room = loadRoom(roomId);
+        grid = createGrid(room);
+        RoomDefinition.SpawnPoint spawn = findSpawn(spawnId, 96.0f, 160.0f);
+        resetPlayerAt(spawn);
+        clearTransientCombatState();
+        createEnemies();
+        selectedEnemy = null;
+        clampCameraToRoom();
+    }
+
+    private void updateCheckpoints() {
+        if (playerHealth.defeated()) {
+            return;
+        }
+        Aabb playerBounds = player.bounds();
+        for (RoomDefinition.SpawnPoint spawn : room.spawns()) {
+            if (!spawn.type().equals("checkpoint")) {
+                continue;
+            }
+            Aabb checkpointBounds = new Aabb(
+                    spawn.x() - CHECKPOINT_TRIGGER_WIDTH * 0.5f,
+                    spawn.y(),
+                    CHECKPOINT_TRIGGER_WIDTH,
+                    CHECKPOINT_TRIGGER_HEIGHT
+            );
+            if (intersects(playerBounds, checkpointBounds)) {
+                checkpointRoomId = currentRoomId;
+                checkpointSpawnId = spawn.id();
+                return;
+            }
+        }
+    }
+
+    private void updateDeathRespawn(float deltaSeconds) {
+        if (!playerHealth.defeated()) {
+            deathRespawnSeconds = 0.0f;
+            return;
+        }
+        deathRespawnSeconds += deltaSeconds;
+        if (deathRespawnSeconds >= DEATH_RESPAWN_DELAY_SECONDS) {
+            respawnAtCheckpoint();
+        }
+    }
+
+    private void respawnAtCheckpoint() {
+        transitionToRoom(checkpointRoomId, checkpointSpawnId);
+        playerHealth.reset();
+        deathRespawnSeconds = 0.0f;
+        playerAnimator.restart(playerAnimationSet.clip("idle"));
+    }
+
+    private void resetPlayerAt(RoomDefinition.SpawnPoint spawn) {
+        player.setPosition(spawn.x(), spawn.y());
+        player.setVelocityX(0.0f);
+        player.setVelocityY(0.0f);
+        state = PlayerState.IDLE;
+        facingRight = true;
+        attackFacingRight = true;
+    }
+
+    private void clearTransientCombatState() {
+        hitPauseTimer.reset();
+        playerHitStunTimer.reset();
+        currentAttackHitbox = null;
+        attackTimeline.reset();
+    }
+
+    private boolean intersects(Aabb first, Aabb second) {
+        return first.x() < second.right()
+                && first.right() > second.x()
+                && first.y() < second.top()
+                && first.top() > second.y();
     }
 
     private RoomDefinition.SpawnPoint findSpawn(String spawnId, float fallbackX, float fallbackY) {
@@ -381,16 +466,25 @@ final class TestRoomScene implements Scene {
     }
 
     private void createEnemies() {
-        RoomDefinition.SpawnPoint slimeSpawn = findSpawn("slime_a", 520.0f, 64.0f);
-        enemies.add(createEnemy(EnemyKind.SLIME, slimeSpawn.id(), slimeSpawn.x(), slimeSpawn.y()));
-        RoomDefinition.SpawnPoint goblinSpawn = findSpawn("goblin_a", 690.0f, 64.0f);
-        enemies.add(createEnemy(EnemyKind.GOBLIN, goblinSpawn.id(), goblinSpawn.x(), goblinSpawn.y()));
-        RoomDefinition.SpawnPoint flyingEyeSpawn = findSpawn("flying_eye_a", 850.0f, 220.0f);
-        enemies.add(createEnemy(EnemyKind.FLYING_EYE, flyingEyeSpawn.id(), flyingEyeSpawn.x(), flyingEyeSpawn.y()));
-        RoomDefinition.SpawnPoint skeletonSpawn = findSpawn("skeleton_a", 940.0f, 64.0f);
-        enemies.add(createEnemy(EnemyKind.SKELETON, skeletonSpawn.id(), skeletonSpawn.x(), skeletonSpawn.y()));
-        RoomDefinition.SpawnPoint mushroomSpawn = findSpawn("mushroom_a", 1100.0f, 64.0f);
-        enemies.add(createEnemy(EnemyKind.MUSHROOM, mushroomSpawn.id(), mushroomSpawn.x(), mushroomSpawn.y()));
+        enemies.clear();
+        for (RoomDefinition.SpawnPoint spawn : room.spawns()) {
+            if (!spawn.type().equals("enemy_spawn")) {
+                continue;
+            }
+            EnemyKind kind = enemyKindForSpawn(spawn.id());
+            if (kind != null) {
+                enemies.add(createEnemy(kind, spawn.id(), spawn.x(), spawn.y()));
+            }
+        }
+    }
+
+    private EnemyKind enemyKindForSpawn(String spawnId) {
+        for (EnemyKind kind : EnemyKind.values()) {
+            if (spawnId.startsWith(kind.spawnPrefix)) {
+                return kind;
+            }
+        }
+        return null;
     }
 
     private EnemyActor createEnemy(EnemyKind kind, String spawnId, float x, float y) {
@@ -910,6 +1004,16 @@ final class TestRoomScene implements Scene {
         for (RoomDefinition.DoorDefinition door : room.doors()) {
             debugGeometryBuilder.addAabb(drawList, new Aabb(door.x(), door.y(), door.width(), door.height()), DOOR_TRIGGER_COLOR);
         }
+        for (RoomDefinition.SpawnPoint spawn : room.spawns()) {
+            if (spawn.type().equals("checkpoint")) {
+                debugGeometryBuilder.addAabb(drawList, new Aabb(
+                        spawn.x() - CHECKPOINT_TRIGGER_WIDTH * 0.5f,
+                        spawn.y(),
+                        CHECKPOINT_TRIGGER_WIDTH,
+                        CHECKPOINT_TRIGGER_HEIGHT
+                ), CHECKPOINT_COLOR);
+            }
+        }
         debugRenderer.render(drawList);
     }
 
@@ -1351,6 +1455,7 @@ final class TestRoomScene implements Scene {
 
     private void drawHud() {
         Gdx.graphics.setTitle("Umbra2D | " + room.roomId()
+                + " | checkpoint=" + checkpointRoomId + ":" + checkpointSpawnId
                 + " | " + state
                 + " | attack=" + attackTimeline.phase()
                 + " | hitPause=" + hitPauseTimer.paused()
