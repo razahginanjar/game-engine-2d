@@ -93,6 +93,8 @@ public final class RoomLoader {
             JsonObject spawn = element.getAsJsonObject();
             String id = requiredString(spawn, "id");
             String type = requiredString(spawn, "type");
+            validateSnakeCase("spawn id", id);
+            validateSnakeCase("spawn type", type);
             float x = requiredFloat(spawn, "x");
             float y = requiredFloat(spawn, "y");
             if (!ids.add(id)) {
@@ -140,6 +142,7 @@ public final class RoomLoader {
         for (JsonElement element : doors) {
             JsonObject door = element.getAsJsonObject();
             String id = requiredString(door, "id");
+            validateSnakeCase("door id", id);
             if (!ids.add(id)) {
                 throw new RoomValidationException("duplicate door id: " + id);
             }
@@ -179,6 +182,7 @@ public final class RoomLoader {
         for (JsonElement element : zones) {
             JsonObject zone = element.getAsJsonObject();
             String id = requiredString(zone, "id");
+            validateSnakeCase("camera zone id", id);
             if (!ids.add(id)) {
                 throw new RoomValidationException("duplicate camera zone id: " + id);
             }
@@ -208,6 +212,10 @@ public final class RoomLoader {
             if (door.targetRoom().isBlank() || door.targetSpawn().isBlank()) {
                 throw new RoomValidationException("door target must not be blank: " + door.id());
             }
+            if (!door.targetRoom().equals("self")) {
+                validateSnakeCase("door target_room", door.targetRoom());
+            }
+            validateSnakeCase("door target_spawn", door.targetSpawn());
             if (door.targetRoom().equals("self") && !spawnIds.contains(door.targetSpawn())) {
                 throw new RoomValidationException("self-target door references missing spawn: " + door.id());
             }

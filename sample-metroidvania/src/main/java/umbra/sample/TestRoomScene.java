@@ -76,6 +76,8 @@ final class TestRoomScene implements Scene {
     private static final int FIRST_ENEMY_ENTITY_ID = 100;
     private static final DebugColor SOLID_TILE_COLOR = new DebugColor(0.18f, 0.30f, 0.22f, 1.0f);
     private static final DebugColor GRID_COLOR = new DebugColor(0.20f, 0.45f, 0.48f, 0.38f);
+    private static final DebugColor DOOR_TRIGGER_COLOR = new DebugColor(0.10f, 0.85f, 1.0f, 0.85f);
+    private static final DebugColor CAMERA_ZONE_COLOR = new DebugColor(0.95f, 0.80f, 0.20f, 0.55f);
     private static final DebugColor PLAYER_OUTLINE_COLOR = new DebugColor(1.0f, 1.0f, 0.0f, 1.0f);
     private static final DebugColor HURTBOX_COLOR = new DebugColor(1.0f, 1.0f, 0.0f, 1.0f);
     private static final DebugColor SELECTED_ENEMY_COLOR = new DebugColor(0.15f, 0.85f, 1.0f, 1.0f);
@@ -891,6 +893,12 @@ final class TestRoomScene implements Scene {
         DebugDrawList drawList = new DebugDrawList();
         debugGeometryBuilder.addSolidTiles(drawList, grid, SOLID_TILE_COLOR);
         debugGeometryBuilder.addTileGrid(drawList, grid, GRID_COLOR);
+        for (RoomDefinition.CameraZoneDefinition zone : room.cameraZones()) {
+            debugGeometryBuilder.addAabb(drawList, new Aabb(zone.x(), zone.y(), zone.width(), zone.height()), CAMERA_ZONE_COLOR);
+        }
+        for (RoomDefinition.DoorDefinition door : room.doors()) {
+            debugGeometryBuilder.addAabb(drawList, new Aabb(door.x(), door.y(), door.width(), door.height()), DOOR_TRIGGER_COLOR);
+        }
         debugRenderer.render(drawList);
     }
 
