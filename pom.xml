@@ -18,6 +18,7 @@
         <module>engine-room</module>
         <module>engine-render</module>
         <module>engine-animation</module>
+        <module>engine-ai</module>
         <module>engine-combat</module>
         <module>sample-metroidvania</module>
         <module>desktop</module>

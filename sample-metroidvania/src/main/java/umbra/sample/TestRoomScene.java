@@ -15,6 +15,11 @@ import umbra.animation.AnimationClipDefinition;
 import umbra.animation.AnimationMetadataLoader;
 import umbra.animation.AnimationPlayer;
 import umbra.animation.AnimationSetDefinition;
+import umbra.ai.EnemyAiState;
+import umbra.ai.EnemyBrain;
+import umbra.ai.EnemyBrainConfig;
+import umbra.ai.EnemyBrainDecision;
+import umbra.ai.EnemyBrainInput;
 import umbra.combat.AttackDefinition;
 import umbra.combat.AttackPhase;
 import umbra.combat.AttackTimelineDefinition;
@@ -37,6 +42,7 @@ import umbra.physics.CollisionGrid;
 import umbra.physics.KinematicBody;
 import umbra.physics.KinematicImpulseConfig;
 import umbra.physics.KinematicImpulseMover;
+import umbra.physics.KinematicMover;
 import umbra.physics.MovementResult;
 import umbra.physics.enemy.PatrolController;
 import umbra.physics.enemy.PatrolControllerConfig;
@@ -388,7 +394,10 @@ final class TestRoomScene implements Scene {
                 0.0f,
                 -8.0f,
                 new DebugColor(0.30f, 0.85f, 0.32f, 1.0f),
-                PatrolControllerConfig.slimeDefaults()
+                PatrolControllerConfig.slimeDefaults(),
+                EnemyBrainConfig.standardMelee(),
+                76.0f,
+                118.0f
             );
             case GOBLIN -> createGroundEnemy(
                 spawn,
@@ -400,7 +409,10 @@ final class TestRoomScene implements Scene {
                 0.0f,
                 -18.0f,
                 new DebugColor(0.35f, 0.75f, 0.28f, 1.0f),
-                new PatrolControllerConfig(70.0f, 1200.0f, 420.0f)
+                new PatrolControllerConfig(70.0f, 1200.0f, 420.0f),
+                EnemyBrainConfig.standardMelee(),
+                104.0f,
+                140.0f
             );
             case FLYING_EYE -> createFlyingEnemy(
                 spawn,
@@ -412,7 +424,10 @@ final class TestRoomScene implements Scene {
                 0.0f,
                 -22.0f,
                 new DebugColor(0.90f, 0.25f, 0.55f, 1.0f),
-                64.0f
+                64.0f,
+                EnemyBrainConfig.flyingMelee(),
+                96.0f,
+                142.0f
             );
             case SKELETON -> createGroundEnemy(
                 spawn,
@@ -424,7 +439,10 @@ final class TestRoomScene implements Scene {
                 0.0f,
                 -22.0f,
                 new DebugColor(0.82f, 0.82f, 0.70f, 1.0f),
-                new PatrolControllerConfig(48.0f, 1200.0f, 420.0f)
+                new PatrolControllerConfig(48.0f, 1200.0f, 420.0f),
+                EnemyBrainConfig.standardMelee(),
+                78.0f,
+                116.0f
             );
             case MUSHROOM -> createGroundEnemy(
                 spawn,
@@ -436,7 +454,10 @@ final class TestRoomScene implements Scene {
                 0.0f,
                 -18.0f,
                 new DebugColor(0.88f, 0.33f, 0.34f, 1.0f),
-                new PatrolControllerConfig(42.0f, 1200.0f, 420.0f)
+                new PatrolControllerConfig(42.0f, 1200.0f, 420.0f),
+                EnemyBrainConfig.standardMelee(),
+                70.0f,
+                108.0f
             );
         };
     }
@@ -451,7 +472,10 @@ final class TestRoomScene implements Scene {
             float drawOffsetX,
             float drawOffsetY,
             DebugColor fallbackColor,
-            PatrolControllerConfig patrolConfig
+            PatrolControllerConfig patrolConfig,
+            EnemyBrainConfig brainConfig,
+            float chaseSpeed,
+            float evadeSpeed
     ) {
         return new EnemyActor(
                 nextEnemyEntityId++,
@@ -464,6 +488,9 @@ final class TestRoomScene implements Scene {
                 new PatrolController(patrolConfig, -1),
                 new KinematicImpulseConfig(patrolConfig.gravityPixelsPerSecondSquared(), patrolConfig.maxFallSpeedPixelsPerSecond()),
                 0.0f,
+                brainConfig,
+                chaseSpeed,
+                evadeSpeed,
                 drawWidth,
                 drawHeight,
                 drawOffsetX,
@@ -482,7 +509,10 @@ final class TestRoomScene implements Scene {
             float drawOffsetX,
             float drawOffsetY,
             DebugColor fallbackColor,
-            float speed
+            float speed,
+            EnemyBrainConfig brainConfig,
+            float chaseSpeed,
+            float evadeSpeed
     ) {
         return new EnemyActor(
                 nextEnemyEntityId++,
@@ -495,6 +525,9 @@ final class TestRoomScene implements Scene {
                 null,
                 new KinematicImpulseConfig(800.0f, 360.0f),
                 speed,
+                brainConfig,
+                chaseSpeed,
+                evadeSpeed,
                 drawWidth,
                 drawHeight,
                 drawOffsetX,
@@ -556,7 +589,7 @@ final class TestRoomScene implements Scene {
         if (!playerHealth.defeated()) {
             List<HitboxInstance> enemyContactHitboxes = new ArrayList<>();
             for (EnemyActor enemy : enemies) {
-                if (!enemy.health.defeated()) {
+                if (!enemy.health.defeated() && enemy.brain.state() == EnemyAiState.ATTACK) {
                     enemyContactHitboxes.add(new HitboxInstance(enemy.entityId, CombatTeam.ENEMY, enemyContactAttack, enemy.body.bounds(), true));
                 }
             }
@@ -618,11 +651,26 @@ final class TestRoomScene implements Scene {
     }
 
     private void updateEnemies(float deltaSeconds) {
+        boolean playerAttackThreat = currentAttackHitbox != null && !attackTimeline.acceptingNewAttack();
         for (EnemyActor enemy : enemies) {
-            if (enemy.health.defeated()) {
+            EnemyBrainDecision decision = enemy.brain.update(new EnemyBrainInput(
+                    enemy.body.x() + enemy.body.width() * 0.5f,
+                    enemy.body.y() + enemy.body.height() * 0.5f,
+                    player.x() + player.width() * 0.5f,
+                    player.y() + player.height() * 0.5f,
+                    playerAttackThreat,
+                    enemy.hitStunTimer.stunned(),
+                    enemy.health.defeated(),
+                    deltaSeconds
+            ));
+
+            if (decision.desiredDirection() != 0) {
+                enemy.facingDirection = decision.desiredDirection();
+            }
+            if (decision.state() == EnemyAiState.DEAD) {
                 continue;
             }
-            if (enemy.hitStunTimer.stunned()) {
+            if (decision.state() == EnemyAiState.HIT_STUN) {
                 enemy.knockbackMover.update(enemy.body, grid, enemy.impulseConfig, deltaSeconds);
                 enemy.hitStunTimer.update(deltaSeconds);
                 if (!enemy.hitStunTimer.stunned()) {
@@ -632,14 +680,57 @@ final class TestRoomScene implements Scene {
             }
 
             if (enemy.movement == EnemyMovement.GROUND_PATROL) {
-                enemy.patrolController.update(enemy.body, grid, deltaSeconds);
+                updateGroundEnemy(enemy, decision, deltaSeconds);
             } else {
-                updateFlyingEnemy(enemy, deltaSeconds);
+                updateFlyingEnemy(enemy, decision, deltaSeconds);
             }
         }
     }
 
-    private void updateFlyingEnemy(EnemyActor enemy, float deltaSeconds) {
+    private void updateGroundEnemy(EnemyActor enemy, EnemyBrainDecision decision, float deltaSeconds) {
+        if (decision.state() == EnemyAiState.PATROL) {
+            enemy.patrolController.update(enemy.body, grid, deltaSeconds);
+            enemy.facingDirection = enemy.patrolController.facingRight() ? 1 : -1;
+            return;
+        }
+
+        float speed = switch (decision.state()) {
+            case CHASE -> enemy.chaseSpeed;
+            case EVADE -> enemy.evadeSpeed;
+            default -> 0.0f;
+        };
+        float velocityX = decision.desiredDirection() * speed;
+        float velocityY = Math.max(
+                enemy.body.velocityY() - enemy.impulseConfig.gravityPixelsPerSecondSquared() * deltaSeconds,
+                -enemy.impulseConfig.maxFallSpeedPixelsPerSecond()
+        );
+        enemy.body.setVelocityX(velocityX);
+        enemy.body.setVelocityY(velocityY);
+        MovementResult result = enemy.mover.move(enemy.body, grid, velocityX * deltaSeconds, velocityY * deltaSeconds);
+        if ((result.hitLeft() && velocityX < 0.0f) || (result.hitRight() && velocityX > 0.0f)) {
+            enemy.body.setVelocityX(0.0f);
+        }
+        if ((result.hitGround() && velocityY < 0.0f) || (result.hitCeiling() && velocityY > 0.0f)) {
+            enemy.body.setVelocityY(0.0f);
+        }
+    }
+
+    private void updateFlyingEnemy(EnemyActor enemy, EnemyBrainDecision decision, float deltaSeconds) {
+        if (decision.state() == EnemyAiState.CHASE || decision.state() == EnemyAiState.EVADE) {
+            float speed = decision.state() == EnemyAiState.CHASE ? enemy.chaseSpeed : enemy.evadeSpeed;
+            float nextX = enemy.body.x() + decision.desiredDirection() * speed * deltaSeconds;
+            float targetCenterY = decision.state() == EnemyAiState.CHASE
+                    ? player.y() + player.height() * 0.5f
+                    : enemy.spawnY;
+            float currentCenterY = enemy.body.y() + enemy.body.height() * 0.5f;
+            float dy = Math.max(-speed, Math.min(speed, targetCenterY - currentCenterY)) * deltaSeconds;
+            enemy.body.setPosition(clampEnemyX(enemy, nextX), clampEnemyY(enemy, enemy.body.y() + dy));
+            return;
+        }
+        if (decision.state() == EnemyAiState.CAUTIOUS || decision.state() == EnemyAiState.ATTACK) {
+            return;
+        }
+
         enemy.flightAgeSeconds += deltaSeconds;
         float patrolHalfWidth = 96.0f;
         float nextX = enemy.body.x() + enemy.flightDirection * enemy.flightSpeed * deltaSeconds;
@@ -649,6 +740,16 @@ final class TestRoomScene implements Scene {
         }
         float nextY = enemy.spawnY + (float) Math.sin(enemy.flightAgeSeconds * 3.0f) * 8.0f;
         enemy.body.setPosition(nextX, nextY);
+    }
+
+    private float clampEnemyX(EnemyActor enemy, float x) {
+        float roomWidth = grid.widthTiles() * grid.tileSize();
+        return Math.max(grid.tileSize(), Math.min(x, roomWidth - grid.tileSize() - enemy.body.width()));
+    }
+
+    private float clampEnemyY(EnemyActor enemy, float y) {
+        float roomHeight = grid.heightTiles() * grid.tileSize();
+        return Math.max(grid.tileSize(), Math.min(y, roomHeight - grid.tileSize() - enemy.body.height()));
     }
 
     private void updateAnimations(float deltaSeconds) {
@@ -819,7 +920,9 @@ final class TestRoomScene implements Scene {
         float helpY = editorButtonY(row + 1) + 16.0f;
         editorFont.draw(batch, "Click an enemy to select it. New enemies spawn near player.", EDITOR_BUTTON_X, helpY);
         if (selectedEnemy != null && enemies.contains(selectedEnemy)) {
-            editorFont.draw(batch, "Selected: " + selectedEnemy.spawnId + " #" + selectedEnemy.entityId,
+            editorFont.draw(batch, "Selected: " + selectedEnemy.spawnId
+                            + " #" + selectedEnemy.entityId
+                            + " " + selectedEnemy.brain.state(),
                     EDITOR_BUTTON_X,
                     helpY - 18.0f);
         }
@@ -962,17 +1065,22 @@ final class TestRoomScene implements Scene {
         private final AnimationSetDefinition animationSet;
         private final AnimationPlayer animator = new AnimationPlayer();
         private final PatrolController patrolController;
+        private final KinematicMover mover = new KinematicMover();
         private final KinematicImpulseMover knockbackMover = new KinematicImpulseMover();
         private final KinematicImpulseConfig impulseConfig;
+        private final EnemyBrain brain;
         private final HealthPool health = new HealthPool(3, 0.0f);
         private final HitStunTimer hitStunTimer = new HitStunTimer();
         private final float flightSpeed;
+        private final float chaseSpeed;
+        private final float evadeSpeed;
         private final float drawWidth;
         private final float drawHeight;
         private final float drawOffsetX;
         private final float drawOffsetY;
         private final DebugColor fallbackColor;
         private int flightDirection = -1;
+        private int facingDirection = -1;
         private float flightAgeSeconds;
 
         private EnemyActor(
@@ -986,6 +1094,9 @@ final class TestRoomScene implements Scene {
                 PatrolController patrolController,
                 KinematicImpulseConfig impulseConfig,
                 float flightSpeed,
+                EnemyBrainConfig brainConfig,
+                float chaseSpeed,
+                float evadeSpeed,
                 float drawWidth,
                 float drawHeight,
                 float drawOffsetX,
@@ -1002,6 +1113,9 @@ final class TestRoomScene implements Scene {
             this.patrolController = patrolController;
             this.impulseConfig = impulseConfig;
             this.flightSpeed = flightSpeed;
+            this.brain = new EnemyBrain(brainConfig, entityId * 31 + spawnId.hashCode());
+            this.chaseSpeed = chaseSpeed;
+            this.evadeSpeed = evadeSpeed;
             this.drawWidth = drawWidth;
             this.drawHeight = drawHeight;
             this.drawOffsetX = drawOffsetX;
@@ -1016,8 +1130,10 @@ final class TestRoomScene implements Scene {
             body.setVelocityY(0.0f);
             health.reset();
             hitStunTimer.reset();
+            brain.reset();
             animator.restart(animationSet.clip("move"));
             flightDirection = -1;
+            facingDirection = -1;
             flightAgeSeconds = 0.0f;
             if (patrolController != null) {
                 patrolController.reset(-1);
@@ -1025,10 +1141,10 @@ final class TestRoomScene implements Scene {
         }
 
         private boolean facingRight() {
-            if (movement == EnemyMovement.FLYING_PATROL) {
-                return flightDirection > 0;
+            if (Math.abs(body.velocityX()) > 0.01f) {
+                return body.velocityX() > 0.0f;
             }
-            return patrolController != null && patrolController.facingRight();
+            return facingDirection > 0;
         }
     }
 
@@ -1040,7 +1156,15 @@ final class TestRoomScene implements Scene {
                 + " | playerStun=" + playerHitStunTimer.stunned()
                 + " | playerHP=" + playerHealth.currentHealth()
                 + " | enemiesAlive=" + aliveEnemyCount()
+                + " | selectedAI=" + selectedEnemyState()
                 + " | A/D move, Space jump, J attack, R reset, Esc quit");
+    }
+
+    private String selectedEnemyState() {
+        if (selectedEnemy == null || !enemies.contains(selectedEnemy)) {
+            return "none";
+        }
+        return selectedEnemy.brain.state().name();
     }
 
     private int aliveEnemyCount() {

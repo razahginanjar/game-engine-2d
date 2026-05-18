@@ -59,6 +59,7 @@ Do not commit local absolute paths, credentials, generated build folders, IDE st
 
 - `engine-core`: config, scene lifecycle, fixed timestep.
 - `engine-render`: debug draw command model, sprite draw command model, and LibGDX render adapters.
+- `engine-ai`: deterministic enemy sight, chase, cautious attack preparation, attack, evade, hit-stun, and dead state decisions.
 - `engine-physics2d`: tile collision, kinematic player movement, simple enemy patrol movement, and impulse/knockback movement.
 - `engine-assets`: asset path validation.
 - `engine-room`: JSON room model loading and v1 contract validation.
@@ -86,6 +87,7 @@ Implemented first because it blocks every later gameplay feature:
 - Deterministic hit-stun timer for post-hit action lock.
 - Metadata-driven animation clips for sheet-based sprites and image-sequence sprites.
 - Animated sample sprites for player idle/run/jump/fall/attack/hit/death, slime movement, goblin movement, flying eye flight, skeleton walk, and mushroom movement.
+- Enemy AI vision behavior: patrol outside sight, chase visible player, become cautious at close range, attack after windup, and probabilistically evade nearby player attacks.
 - Graybox combat sample with player slash, multiple moving enemies, anchored hitbox movement, contact damage, knockback, HP state, hit pause, hit stun, active hitbox debug, enemy hurtboxes, and reset.
 
 Sprite assets are loaded from `../assets` by default. Override with:
