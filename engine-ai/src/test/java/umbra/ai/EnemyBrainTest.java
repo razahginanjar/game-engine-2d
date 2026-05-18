@@ -42,6 +42,17 @@ final class EnemyBrainTest {
     }
 
     @Test
+    void preparesBeforeAttackingInsideWeaponRange() {
+        EnemyBrainConfig config = EnemyBrainConfig.standardMelee();
+        EnemyBrain brain = new EnemyBrain(config, 7);
+
+        EnemyBrainDecision decision = brain.update(input(100.0f, 0.0f, 120.0f, 0.0f, false, 0.016f));
+
+        assertEquals(EnemyAiState.CAUTIOUS, decision.state());
+        assertFalse(decision.wantsAttack());
+    }
+
+    @Test
     void standardAttackWindowAllowsEightFramesAtFourteenFps() {
         EnemyBrainConfig config = EnemyBrainConfig.standardMelee();
         float lastFrameTime = 7.0f / 14.0f;

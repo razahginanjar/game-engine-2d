@@ -33,11 +33,11 @@ public record EnemyBrainConfig(
         return new EnemyBrainConfig(
                 260.0f,
                 96.0f,
-                32.0f,
-                24.0f,
+                56.0f,
+                56.0f,
                 0.28f,
                 0.62f,
-                56.0f,
+                64.0f,
                 0.45f,
                 0.22f
         );
@@ -48,10 +48,10 @@ public record EnemyBrainConfig(
                 300.0f,
                 160.0f,
                 42.0f,
-                30.0f,
+                42.0f,
                 0.20f,
                 0.62f,
-                70.0f,
+                60.0f,
                 0.55f,
                 0.24f
         );

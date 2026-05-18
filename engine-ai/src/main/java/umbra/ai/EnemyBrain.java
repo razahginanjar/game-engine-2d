@@ -64,13 +64,9 @@ public final class EnemyBrain {
             return new EnemyBrainDecision(state, evadeDirection, false, true);
         }
 
-        if (absDx <= config.attackRange()) {
-            startAttack(directionToPlayer);
-            return new EnemyBrainDecision(state, directionToPlayer, true, false);
-        }
         if (absDx <= config.cautiousDistance()) {
             cautiousSeconds += input.deltaSeconds();
-            if (cautiousSeconds >= config.attackWindupSeconds()) {
+            if (cautiousSeconds >= config.attackWindupSeconds() && absDx <= config.attackRange()) {
                 startAttack(directionToPlayer);
                 return new EnemyBrainDecision(state, directionToPlayer, true, false);
             }

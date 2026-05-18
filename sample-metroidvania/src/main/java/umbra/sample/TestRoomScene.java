@@ -81,6 +81,9 @@ final class TestRoomScene implements Scene {
     private static final DebugColor ATTACK_ACTIVE_COLOR = new DebugColor(1.0f, 0.0f, 0.0f, 1.0f);
     private static final DebugColor ATTACK_INACTIVE_COLOR = new DebugColor(0.7f, 0.15f, 0.15f, 0.55f);
     private static final DebugColor WHITE = new DebugColor(1.0f, 1.0f, 1.0f, 1.0f);
+    // Runtime frames are zero-based, so these map to Attack 6.png and Attack 7.png.
+    private static final int ENEMY_ATTACK_ACTIVE_FRAME_START = 5;
+    private static final int ENEMY_ATTACK_ACTIVE_FRAME_END = 6;
     private static final String PLAYER_IDLE_TEXTURE = "player_idle";
     private static final String PLAYER_RUN_TEXTURE = "player_run";
     private static final String PLAYER_JUMP_TEXTURE = "player_jump";
@@ -243,8 +246,8 @@ final class TestRoomScene implements Scene {
             }
         }
         updateEnemies(deltaSeconds);
-        updateCombat(deltaSeconds);
         updateAnimations(deltaSeconds);
+        updateCombat(deltaSeconds);
         clampCameraToRoom();
     }
 
@@ -385,6 +388,7 @@ final class TestRoomScene implements Scene {
         RoomDefinition.SpawnPoint spawn = new RoomDefinition.SpawnPoint(spawnId, "enemy_spawn", x, y);
         return switch (kind) {
             case SLIME -> createGroundEnemy(
+                kind,
                 spawn,
                 slimeAnimationSet,
                 28.0f,
@@ -396,11 +400,12 @@ final class TestRoomScene implements Scene {
                 -8.0f,
                 new DebugColor(0.30f, 0.85f, 0.32f, 1.0f),
                 PatrolControllerConfig.slimeDefaults(),
-                EnemyBrainConfig.standardMelee(),
+                enemyBrainConfig(180.0f, 64.0f, 34.0f, 0.20f, 0.50f, 44.0f, 0.35f, 0.18f),
                 76.0f,
                 118.0f
             );
             case GOBLIN -> createGroundEnemy(
+                kind,
                 spawn,
                 goblinAnimationSet,
                 26.0f,
@@ -417,11 +422,12 @@ final class TestRoomScene implements Scene {
                 140.0f
             );
             case FLYING_EYE -> createFlyingEnemy(
+                kind,
                 spawn,
                 flyingEyeAnimationSet,
                 30.0f,
                 26.0f,
-                new HitboxDefinition(26.0f, 22.0f, 2.0f, 2.0f),
+                new HitboxDefinition(18.0f, 18.0f, 2.0f, 2.0f),
                 72.0f,
                 72.0f,
                 0.0f,
@@ -433,6 +439,7 @@ final class TestRoomScene implements Scene {
                 142.0f
             );
             case SKELETON -> createGroundEnemy(
+                kind,
                 spawn,
                 skeletonAnimationSet,
                 24.0f,
@@ -449,25 +456,50 @@ final class TestRoomScene implements Scene {
                 116.0f
             );
             case MUSHROOM -> createGroundEnemy(
+                kind,
                 spawn,
                 mushroomAnimationSet,
                 30.0f,
                 34.0f,
-                new HitboxDefinition(26.0f, 24.0f, 2.0f, 4.0f),
+                new HitboxDefinition(18.0f, 18.0f, 2.0f, 4.0f),
                 74.0f,
                 74.0f,
                 0.0f,
                 -18.0f,
                 new DebugColor(0.88f, 0.33f, 0.34f, 1.0f),
                 new PatrolControllerConfig(42.0f, 1200.0f, 420.0f),
-                EnemyBrainConfig.standardMelee(),
+                enemyBrainConfig(240.0f, 96.0f, 42.0f, 0.28f, 0.62f, 56.0f, 0.45f, 0.22f),
                 70.0f,
                 108.0f
             );
         };
     }
 
+    private EnemyBrainConfig enemyBrainConfig(
+            float visionRangeX,
+            float visionRangeY,
+            float weaponRange,
+            float attackWindupSeconds,
+            float attackDurationSeconds,
+            float evadeThreatRange,
+            float evadeChance,
+            float evadeDurationSeconds
+    ) {
+        return new EnemyBrainConfig(
+                visionRangeX,
+                visionRangeY,
+                weaponRange,
+                weaponRange,
+                attackWindupSeconds,
+                attackDurationSeconds,
+                evadeThreatRange,
+                evadeChance,
+                evadeDurationSeconds
+        );
+    }
+
     private EnemyActor createGroundEnemy(
+            EnemyKind kind,
             RoomDefinition.SpawnPoint spawn,
             AnimationSetDefinition animationSet,
             float bodyWidth,
@@ -485,6 +517,7 @@ final class TestRoomScene implements Scene {
     ) {
         return new EnemyActor(
                 nextEnemyEntityId++,
+                kind,
                 spawn.id(),
                 EnemyMovement.GROUND_PATROL,
                 spawn.x(),
@@ -507,6 +540,7 @@ final class TestRoomScene implements Scene {
     }
 
     private EnemyActor createFlyingEnemy(
+            EnemyKind kind,
             RoomDefinition.SpawnPoint spawn,
             AnimationSetDefinition animationSet,
             float bodyWidth,
@@ -524,6 +558,7 @@ final class TestRoomScene implements Scene {
     ) {
         return new EnemyActor(
                 nextEnemyEntityId++,
+                kind,
                 spawn.id(),
                 EnemyMovement.FLYING_PATROL,
                 spawn.x(),
@@ -598,7 +633,7 @@ final class TestRoomScene implements Scene {
         if (!playerHealth.defeated()) {
             List<HitboxInstance> enemyAttackHitboxes = new ArrayList<>();
             for (EnemyActor enemy : enemies) {
-                if (!enemy.health.defeated() && enemy.brain.state() == EnemyAiState.ATTACK) {
+                if (!enemy.health.defeated() && enemyAttackActive(enemy)) {
                     enemyAttackHitboxes.add(enemy.createAttackHitbox(enemyContactAttack));
                 }
             }
@@ -615,6 +650,15 @@ final class TestRoomScene implements Scene {
                 }
             }
         }
+    }
+
+    private boolean enemyAttackActive(EnemyActor enemy) {
+        AnimationClipDefinition clip = enemy.animator.clip();
+        return enemy.brain.state() == EnemyAiState.ATTACK
+                && clip != null
+                && clip.id().equals("attack")
+                && enemy.animator.frameIndex() >= ENEMY_ATTACK_ACTIVE_FRAME_START
+                && enemy.animator.frameIndex() <= ENEMY_ATTACK_ACTIVE_FRAME_END;
     }
 
     private EnemyActor findEnemy(int entityId) {
@@ -790,6 +834,10 @@ final class TestRoomScene implements Scene {
         if (enemy.brain.state() == EnemyAiState.ATTACK) {
             return clipOrMove(enemy.animationSet, "attack");
         }
+        if (enemy.kind == EnemyKind.SKELETON && enemy.usesShieldCaution()
+                && (enemy.brain.state() == EnemyAiState.CHASE || enemy.brain.state() == EnemyAiState.CAUTIOUS)) {
+            return clipOrMove(enemy.animationSet, "shield");
+        }
         if (enemy.brain.state() == EnemyAiState.CAUTIOUS) {
             return clipOrMove(enemy.animationSet, "idle");
         }
@@ -921,8 +969,8 @@ final class TestRoomScene implements Scene {
         DebugDrawList drawList = new DebugDrawList();
         for (EnemyActor enemy : enemies) {
             debugGeometryBuilder.addAabb(drawList, enemy.body.bounds(), HURTBOX_COLOR);
-            if (!enemy.health.defeated() && enemy.brain.state() == EnemyAiState.ATTACK) {
-                debugGeometryBuilder.addAabb(drawList, enemy.attackBounds(), ATTACK_INACTIVE_COLOR);
+            if (!enemy.health.defeated() && enemyAttackActive(enemy)) {
+                debugGeometryBuilder.addAabb(drawList, enemy.attackBounds(), ATTACK_ACTIVE_COLOR);
             }
         }
         if (selectedEnemy != null && enemies.contains(selectedEnemy)) {
@@ -1116,6 +1164,7 @@ final class TestRoomScene implements Scene {
 
     private static final class EnemyActor {
         private final int entityId;
+        private final EnemyKind kind;
         private final String spawnId;
         private final EnemyMovement movement;
         private final float spawnX;
@@ -1145,6 +1194,7 @@ final class TestRoomScene implements Scene {
 
         private EnemyActor(
                 int entityId,
+                EnemyKind kind,
                 String spawnId,
                 EnemyMovement movement,
                 float spawnX,
@@ -1165,6 +1215,7 @@ final class TestRoomScene implements Scene {
                 DebugColor fallbackColor
         ) {
             this.entityId = entityId;
+            this.kind = kind;
             this.spawnId = spawnId;
             this.movement = movement;
             this.spawnX = spawnX;
@@ -1218,6 +1269,10 @@ final class TestRoomScene implements Scene {
                     facingRight() ? FacingDirection.RIGHT : FacingDirection.LEFT,
                     true
             );
+        }
+
+        private boolean usesShieldCaution() {
+            return Math.floorMod(entityId, 2) == 1;
         }
 
         private Aabb attackBounds() {
