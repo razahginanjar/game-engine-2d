@@ -767,7 +767,7 @@ final class TestRoomScene implements Scene {
                 enemy.body.y() + enemy.drawOffsetY,
                 enemy.drawWidth,
                 enemy.drawHeight,
-                enemy.facingRight(),
+                !enemy.facingRight(),
                 false,
                 WHITE
         ));
