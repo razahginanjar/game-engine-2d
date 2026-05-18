@@ -89,6 +89,7 @@ Implemented first because it blocks every later gameplay feature:
 - Animated sample sprites for player idle/run/jump/fall/attack/hit/death; slime movement; and fantasy monster move/attack/take-hit/death clips where source assets provide them.
 - Skeleton shield animation metadata is registered for the next guard-behavior increment.
 - Enemy AI vision behavior: patrol outside sight, chase visible player, become cautious at close range, attack after windup, and probabilistically evade nearby player attacks.
+- Enemy attack damage uses facing-aware attack hitboxes: goblin/skeleton weapon enemies reach about one player-width forward, while slime/flying eye/mushroom use smaller close-range hitboxes.
 - Graybox combat sample with player slash, multiple moving enemies, anchored hitbox movement, contact damage, knockback, HP state, hit pause, hit stun, active hitbox debug, enemy hurtboxes, and reset.
 
 Sprite assets are loaded from `../assets` by default. Override with:

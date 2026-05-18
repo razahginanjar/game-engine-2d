@@ -389,6 +389,7 @@ final class TestRoomScene implements Scene {
                 slimeAnimationSet,
                 28.0f,
                 18.0f,
+                new HitboxDefinition(26.0f, 18.0f, 2.0f, 0.0f),
                 56.0f,
                 38.0f,
                 0.0f,
@@ -404,6 +405,7 @@ final class TestRoomScene implements Scene {
                 goblinAnimationSet,
                 26.0f,
                 42.0f,
+                new HitboxDefinition(34.0f, 28.0f, 0.0f, 7.0f),
                 78.0f,
                 78.0f,
                 0.0f,
@@ -419,6 +421,7 @@ final class TestRoomScene implements Scene {
                 flyingEyeAnimationSet,
                 30.0f,
                 26.0f,
+                new HitboxDefinition(26.0f, 22.0f, 2.0f, 2.0f),
                 72.0f,
                 72.0f,
                 0.0f,
@@ -434,6 +437,7 @@ final class TestRoomScene implements Scene {
                 skeletonAnimationSet,
                 24.0f,
                 46.0f,
+                new HitboxDefinition(34.0f, 30.0f, 0.0f, 8.0f),
                 82.0f,
                 82.0f,
                 0.0f,
@@ -449,6 +453,7 @@ final class TestRoomScene implements Scene {
                 mushroomAnimationSet,
                 30.0f,
                 34.0f,
+                new HitboxDefinition(26.0f, 24.0f, 2.0f, 4.0f),
                 74.0f,
                 74.0f,
                 0.0f,
@@ -467,6 +472,7 @@ final class TestRoomScene implements Scene {
             AnimationSetDefinition animationSet,
             float bodyWidth,
             float bodyHeight,
+            HitboxDefinition attackHitboxDefinition,
             float drawWidth,
             float drawHeight,
             float drawOffsetX,
@@ -485,6 +491,7 @@ final class TestRoomScene implements Scene {
                 spawn.y(),
                 new KinematicBody(spawn.x(), spawn.y(), bodyWidth, bodyHeight),
                 animationSet,
+                attackHitboxDefinition,
                 new PatrolController(patrolConfig, -1),
                 new KinematicImpulseConfig(patrolConfig.gravityPixelsPerSecondSquared(), patrolConfig.maxFallSpeedPixelsPerSecond()),
                 0.0f,
@@ -504,6 +511,7 @@ final class TestRoomScene implements Scene {
             AnimationSetDefinition animationSet,
             float bodyWidth,
             float bodyHeight,
+            HitboxDefinition attackHitboxDefinition,
             float drawWidth,
             float drawHeight,
             float drawOffsetX,
@@ -522,6 +530,7 @@ final class TestRoomScene implements Scene {
                 spawn.y(),
                 new KinematicBody(spawn.x(), spawn.y(), bodyWidth, bodyHeight),
                 animationSet,
+                attackHitboxDefinition,
                 null,
                 new KinematicImpulseConfig(800.0f, 360.0f),
                 speed,
@@ -587,14 +596,14 @@ final class TestRoomScene implements Scene {
         }
 
         if (!playerHealth.defeated()) {
-            List<HitboxInstance> enemyContactHitboxes = new ArrayList<>();
+            List<HitboxInstance> enemyAttackHitboxes = new ArrayList<>();
             for (EnemyActor enemy : enemies) {
                 if (!enemy.health.defeated() && enemy.brain.state() == EnemyAiState.ATTACK) {
-                    enemyContactHitboxes.add(new HitboxInstance(enemy.entityId, CombatTeam.ENEMY, enemyContactAttack, enemy.body.bounds(), true));
+                    enemyAttackHitboxes.add(enemy.createAttackHitbox(enemyContactAttack));
                 }
             }
             List<DamageEvent> damageEvents = combatResolver.resolve(
-                    enemyContactHitboxes,
+                    enemyAttackHitboxes,
                     List.of(new HurtboxInstance(PLAYER_ENTITY_ID, CombatTeam.PLAYER, player.bounds(), true))
             );
             for (DamageEvent event : damageEvents) {
@@ -912,6 +921,9 @@ final class TestRoomScene implements Scene {
         DebugDrawList drawList = new DebugDrawList();
         for (EnemyActor enemy : enemies) {
             debugGeometryBuilder.addAabb(drawList, enemy.body.bounds(), HURTBOX_COLOR);
+            if (!enemy.health.defeated() && enemy.brain.state() == EnemyAiState.ATTACK) {
+                debugGeometryBuilder.addAabb(drawList, enemy.attackBounds(), ATTACK_INACTIVE_COLOR);
+            }
         }
         if (selectedEnemy != null && enemies.contains(selectedEnemy)) {
             debugGeometryBuilder.addAabb(drawList, selectedEnemy.body.bounds(), SELECTED_ENEMY_COLOR);
@@ -1110,6 +1122,7 @@ final class TestRoomScene implements Scene {
         private final float spawnY;
         private final KinematicBody body;
         private final AnimationSetDefinition animationSet;
+        private final HitboxDefinition attackHitboxDefinition;
         private final AnimationPlayer animator = new AnimationPlayer();
         private final PatrolController patrolController;
         private final KinematicMover mover = new KinematicMover();
@@ -1138,6 +1151,7 @@ final class TestRoomScene implements Scene {
                 float spawnY,
                 KinematicBody body,
                 AnimationSetDefinition animationSet,
+                HitboxDefinition attackHitboxDefinition,
                 PatrolController patrolController,
                 KinematicImpulseConfig impulseConfig,
                 float flightSpeed,
@@ -1157,6 +1171,7 @@ final class TestRoomScene implements Scene {
             this.spawnY = spawnY;
             this.body = body;
             this.animationSet = animationSet;
+            this.attackHitboxDefinition = attackHitboxDefinition;
             this.patrolController = patrolController;
             this.impulseConfig = impulseConfig;
             this.flightSpeed = flightSpeed;
@@ -1192,6 +1207,24 @@ final class TestRoomScene implements Scene {
                 return body.velocityX() > 0.0f;
             }
             return facingDirection > 0;
+        }
+
+        private HitboxInstance createAttackHitbox(AttackDefinition attack) {
+            return attackHitboxDefinition.createInstance(
+                    entityId,
+                    CombatTeam.ENEMY,
+                    attack,
+                    body.bounds(),
+                    facingRight() ? FacingDirection.RIGHT : FacingDirection.LEFT,
+                    true
+            );
+        }
+
+        private Aabb attackBounds() {
+            return attackHitboxDefinition.createBounds(
+                    body.bounds(),
+                    facingRight() ? FacingDirection.RIGHT : FacingDirection.LEFT
+            );
         }
     }
 
