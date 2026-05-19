@@ -12,7 +12,13 @@ final class SaveGameCodecTest {
 
     @Test
     void encodesAndDecodesCheckpointSave() {
-        SaveGame saveGame = new SaveGame(1, "forest_test_02", "checkpoint_b", List.of("forest_test_01", "forest_test_02"));
+        SaveGame saveGame = new SaveGame(
+                1,
+                "forest_test_02",
+                "checkpoint_b",
+                List.of("forest_test_01", "forest_test_02"),
+                List.of("dash")
+        );
 
         SaveGame decoded = codec.decode(codec.encode(saveGame));
 
@@ -20,6 +26,16 @@ final class SaveGameCodecTest {
         assertEquals("forest_test_02", decoded.checkpointRoomId());
         assertEquals("checkpoint_b", decoded.checkpointSpawnId());
         assertEquals(List.of("forest_test_01", "forest_test_02"), decoded.visitedRoomIds());
+        assertEquals(List.of("dash"), decoded.unlockedAbilityIds());
+    }
+
+    @Test
+    void treatsMissingUnlockedAbilitiesAsEmptyForBackwardCompatibility() {
+        SaveGame decoded = codec.decode(
+                "{\"version\":1,\"checkpointRoomId\":\"forest_test_01\",\"checkpointSpawnId\":\"entry_left\",\"visitedRoomIds\":[\"forest_test_01\"]}"
+        );
+
+        assertEquals(List.of(), decoded.unlockedAbilityIds());
     }
 
     @Test
@@ -38,5 +54,11 @@ final class SaveGameCodecTest {
     void rejectsBlankVisitedRooms() {
         assertThrows(SaveValidationException.class,
                 () -> codec.decode("{\"version\":1,\"checkpointRoomId\":\"forest_test_01\",\"checkpointSpawnId\":\"entry_left\",\"visitedRoomIds\":[\"\"]}"));
+    }
+
+    @Test
+    void rejectsBlankUnlockedAbilities() {
+        assertThrows(SaveValidationException.class,
+                () -> codec.decode("{\"version\":1,\"checkpointRoomId\":\"forest_test_01\",\"checkpointSpawnId\":\"entry_left\",\"unlockedAbilityIds\":[\"\"]}"));
     }
 }

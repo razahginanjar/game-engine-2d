@@ -55,9 +55,24 @@ public final class RoomLoader {
         List<RoomDefinition.SpawnPoint> spawns = readSpawns(root, widthTiles, heightTiles, tileSize);
         List<RoomDefinition.DoorDefinition> doors = readDoors(root, widthTiles, heightTiles, tileSize, isolated);
         List<RoomDefinition.CameraZoneDefinition> cameraZones = readCameraZones(root, widthTiles, heightTiles, tileSize);
+        List<RoomDefinition.AbilityPickupDefinition> abilityPickups = readAbilityPickups(root, widthTiles, heightTiles, tileSize);
+        List<RoomDefinition.AbilityGateDefinition> abilityGates = readAbilityGates(root, widthTiles, heightTiles, tileSize);
         validateDoorTargets(doors, spawns);
 
-        return new RoomDefinition(roomId, biomeId, widthTiles, heightTiles, tileSize, isolated, solidTiles, spawns, doors, cameraZones);
+        return new RoomDefinition(
+                roomId,
+                biomeId,
+                widthTiles,
+                heightTiles,
+                tileSize,
+                isolated,
+                solidTiles,
+                spawns,
+                doors,
+                cameraZones,
+                abilityPickups,
+                abilityGates
+        );
     }
 
     private List<RoomDefinition.TileCell> readSolidTiles(JsonObject root, int widthTiles, int heightTiles) {
@@ -199,6 +214,74 @@ public final class RoomLoader {
                     width,
                     height
             ));
+        }
+        return result;
+    }
+
+    private List<RoomDefinition.AbilityPickupDefinition> readAbilityPickups(
+            JsonObject root,
+            int widthTiles,
+            int heightTiles,
+            int tileSize
+    ) {
+        if (!root.has("ability_pickups")) {
+            return List.of();
+        }
+        JsonArray pickups = root.getAsJsonArray("ability_pickups");
+        List<RoomDefinition.AbilityPickupDefinition> result = new ArrayList<>();
+        Set<String> ids = new HashSet<>();
+        float roomWidth = widthTiles * tileSize;
+        float roomHeight = heightTiles * tileSize;
+        for (JsonElement element : pickups) {
+            JsonObject pickup = element.getAsJsonObject();
+            String id = requiredString(pickup, "id");
+            String abilityId = requiredString(pickup, "ability_id");
+            validateSnakeCase("ability pickup id", id);
+            validateSnakeCase("ability_id", abilityId);
+            if (!ids.add(id)) {
+                throw new RoomValidationException("duplicate ability pickup id: " + id);
+            }
+            float x = requiredFloat(pickup, "x");
+            float y = requiredFloat(pickup, "y");
+            float width = requiredFloat(pickup, "w");
+            float height = requiredFloat(pickup, "h");
+            validatePositiveArea("ability pickup", id, width, height);
+            validateRectInsideRoom("ability pickup", id, x, y, width, height, roomWidth, roomHeight);
+            result.add(new RoomDefinition.AbilityPickupDefinition(id, abilityId, x, y, width, height));
+        }
+        return result;
+    }
+
+    private List<RoomDefinition.AbilityGateDefinition> readAbilityGates(
+            JsonObject root,
+            int widthTiles,
+            int heightTiles,
+            int tileSize
+    ) {
+        if (!root.has("ability_gates")) {
+            return List.of();
+        }
+        JsonArray gates = root.getAsJsonArray("ability_gates");
+        List<RoomDefinition.AbilityGateDefinition> result = new ArrayList<>();
+        Set<String> ids = new HashSet<>();
+        float roomWidth = widthTiles * tileSize;
+        float roomHeight = heightTiles * tileSize;
+        for (JsonElement element : gates) {
+            JsonObject gate = element.getAsJsonObject();
+            String id = requiredString(gate, "id");
+            String requiredAbilityId = requiredString(gate, "required_ability_id");
+            validateSnakeCase("ability gate id", id);
+            validateSnakeCase("required_ability_id", requiredAbilityId);
+            if (!ids.add(id)) {
+                throw new RoomValidationException("duplicate ability gate id: " + id);
+            }
+            float x = requiredFloat(gate, "x");
+            float y = requiredFloat(gate, "y");
+            float width = requiredFloat(gate, "w");
+            float height = requiredFloat(gate, "h");
+            validatePositiveArea("ability gate", id, width, height);
+            validateRectInsideRoom("ability gate", id, x, y, width, height, roomWidth, roomHeight);
+            result.add(new RoomDefinition.AbilityGateDefinition(id, requiredAbilityId, x, y, width, height));
         }
         return result;
     }

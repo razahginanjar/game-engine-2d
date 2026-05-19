@@ -16,13 +16,32 @@ public record RoomDefinition(
         List<TileCell> solidTiles,
         List<SpawnPoint> spawns,
         List<DoorDefinition> doors,
-        List<CameraZoneDefinition> cameraZones
+        List<CameraZoneDefinition> cameraZones,
+        List<AbilityPickupDefinition> abilityPickups,
+        List<AbilityGateDefinition> abilityGates
 ) {
+    public RoomDefinition(
+            String roomId,
+            String biomeId,
+            int widthTiles,
+            int heightTiles,
+            int tileSize,
+            boolean isolated,
+            List<TileCell> solidTiles,
+            List<SpawnPoint> spawns,
+            List<DoorDefinition> doors,
+            List<CameraZoneDefinition> cameraZones
+    ) {
+        this(roomId, biomeId, widthTiles, heightTiles, tileSize, isolated, solidTiles, spawns, doors, cameraZones, List.of(), List.of());
+    }
+
     public RoomDefinition {
         solidTiles = List.copyOf(solidTiles);
         spawns = List.copyOf(spawns);
         doors = List.copyOf(doors);
         cameraZones = List.copyOf(cameraZones);
+        abilityPickups = List.copyOf(abilityPickups);
+        abilityGates = List.copyOf(abilityGates);
     }
 
     public record TileCell(int x, int y) {
@@ -35,5 +54,11 @@ public record RoomDefinition(
     }
 
     public record CameraZoneDefinition(String id, float x, float y, float width, float height) {
+    }
+
+    public record AbilityPickupDefinition(String id, String abilityId, float x, float y, float width, float height) {
+    }
+
+    public record AbilityGateDefinition(String id, String requiredAbilityId, float x, float y, float width, float height) {
     }
 }

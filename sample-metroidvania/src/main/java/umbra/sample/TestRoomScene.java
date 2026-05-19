@@ -88,6 +88,9 @@ final class TestRoomScene implements Scene {
     private static final DebugColor DOOR_TRIGGER_COLOR = new DebugColor(0.10f, 0.85f, 1.0f, 0.85f);
     private static final DebugColor CAMERA_ZONE_COLOR = new DebugColor(0.95f, 0.80f, 0.20f, 0.55f);
     private static final DebugColor CHECKPOINT_COLOR = new DebugColor(0.25f, 1.0f, 0.55f, 0.85f);
+    private static final DebugColor ABILITY_PICKUP_COLOR = new DebugColor(0.25f, 0.75f, 1.0f, 0.90f);
+    private static final DebugColor ABILITY_GATE_LOCKED_COLOR = new DebugColor(1.0f, 0.20f, 0.12f, 0.85f);
+    private static final DebugColor ABILITY_GATE_UNLOCKED_COLOR = new DebugColor(0.25f, 1.0f, 0.45f, 0.35f);
     private static final DebugColor ENEMY_VISION_COLOR = new DebugColor(0.45f, 0.70f, 1.0f, 0.40f);
     private static final DebugColor ENEMY_ATTACK_RANGE_COLOR = new DebugColor(1.0f, 0.45f, 0.15f, 0.70f);
     private static final DebugColor PLAYER_OUTLINE_COLOR = new DebugColor(1.0f, 1.0f, 0.0f, 1.0f);
@@ -114,11 +117,15 @@ final class TestRoomScene implements Scene {
     private static final float EDITOR_BUTTON_GAP = 6.0f;
     private static final String START_ROOM_ID = "forest_test_01";
     private static final String DEFAULT_PLAYER_SPAWN_ID = "entry_left";
+    private static final String ABILITY_DASH = "dash";
     private static final String SAMPLE_SAVE_PATH = ".umbra2d/sample-save.json";
     private static final float CHECKPOINT_TRIGGER_WIDTH = 40.0f;
     private static final float CHECKPOINT_TRIGGER_HEIGHT = 48.0f;
     private static final float DEATH_RESPAWN_DELAY_SECONDS = 1.0f;
     private static final float ROOM_TRANSITION_LOCKOUT_SECONDS = 0.35f;
+    private static final float PLAYER_DASH_SPEED = 430.0f;
+    private static final float PLAYER_DASH_DURATION_SECONDS = 0.16f;
+    private static final float PLAYER_DASH_COOLDOWN_SECONDS = 0.35f;
 
     private final SpriteBatch batch;
     private final ShapeRenderer shapes;
@@ -146,6 +153,7 @@ final class TestRoomScene implements Scene {
     private final PlayerController controller;
     private final KinematicImpulseConfig playerImpulseConfig;
     private final KinematicImpulseMover playerKnockbackMover = new KinematicImpulseMover();
+    private final KinematicMover playerDashMover = new KinematicMover();
     private final List<EnemyActor> enemies = new ArrayList<>();
     private final CombatResolver combatResolver = new CombatResolver();
     private final AttackTimelinePlayer attackTimeline = new AttackTimelinePlayer();
@@ -178,8 +186,12 @@ final class TestRoomScene implements Scene {
     private String currentRoomId = START_ROOM_ID;
     private final CheckpointState checkpointState = new CheckpointState(START_ROOM_ID, DEFAULT_PLAYER_SPAWN_ID);
     private final Set<String> visitedRoomIds = new LinkedHashSet<>();
+    private final Set<String> unlockedAbilityIds = new LinkedHashSet<>();
     private float deathRespawnSeconds;
     private float roomTransitionLockoutSeconds;
+    private float playerDashSeconds;
+    private float playerDashCooldownSeconds;
+    private int playerDashDirection = 1;
 
     TestRoomScene(SpriteBatch spriteBatch, ShapeRenderer shapes, Camera camera, EngineConfig config) {
         this.batch = spriteBatch;
@@ -247,6 +259,12 @@ final class TestRoomScene implements Scene {
         }
         previousJumpDown = jumpDown;
 
+        if (Gdx.input.isKeyJustPressed(Input.Keys.K)
+                || Gdx.input.isKeyJustPressed(Input.Keys.SHIFT_LEFT)
+                || Gdx.input.isKeyJustPressed(Input.Keys.SHIFT_RIGHT)) {
+            startPlayerDash(input);
+        }
+
         if (Gdx.input.isKeyJustPressed(Input.Keys.R)) {
             respawnAtCheckpoint();
         }
@@ -261,11 +279,17 @@ final class TestRoomScene implements Scene {
         }
         if (!playerHealth.defeated()) {
             if (playerHitStunTimer.stunned()) {
+                playerDashSeconds = 0.0f;
                 updatePlayerHitStun(deltaSeconds);
+            } else if (playerDashSeconds > 0.0f) {
+                updatePlayerDash(deltaSeconds);
             } else {
+                updatePlayerDashCooldown(deltaSeconds);
                 state = controller.update(input, player, grid, deltaSeconds);
             }
         }
+        updateAbilityPickups();
+        resolveAbilityGates();
         updateEnemies(deltaSeconds);
         updateAnimations(deltaSeconds);
         updateCombat(deltaSeconds);
@@ -320,6 +344,7 @@ final class TestRoomScene implements Scene {
             SaveGame saveGame = saveGameCodec.decode(saveFile.readString(StandardCharsets.UTF_8.name()));
             checkpointState.activate(saveGame.checkpointRoomId(), saveGame.checkpointSpawnId());
             visitedRoomIds.addAll(saveGame.visitedRoomIds());
+            unlockedAbilityIds.addAll(saveGame.unlockedAbilityIds());
             currentRoomId = saveGame.checkpointRoomId();
         } catch (RuntimeException exception) {
             Gdx.app.error("Umbra2D", "Ignoring invalid sample save: " + SAMPLE_SAVE_PATH, exception);
@@ -334,7 +359,8 @@ final class TestRoomScene implements Scene {
                     SaveGame.CURRENT_VERSION,
                     checkpointState.roomId(),
                     checkpointState.spawnId(),
-                    List.copyOf(visitedRoomIds)
+                    List.copyOf(visitedRoomIds),
+                    List.copyOf(unlockedAbilityIds)
             );
             saveFile.writeString(saveGameCodec.encode(saveGame), false, StandardCharsets.UTF_8.name());
         } catch (RuntimeException exception) {
@@ -400,6 +426,90 @@ final class TestRoomScene implements Scene {
         }
     }
 
+    private void updateAbilityPickups() {
+        if (playerHealth.defeated()) {
+            return;
+        }
+        Aabb playerBounds = player.bounds();
+        for (RoomDefinition.AbilityPickupDefinition pickup : room.abilityPickups()) {
+            if (unlockedAbilityIds.contains(pickup.abilityId())) {
+                continue;
+            }
+            if (playerBounds.overlaps(new Aabb(pickup.x(), pickup.y(), pickup.width(), pickup.height()))) {
+                unlockedAbilityIds.add(pickup.abilityId());
+                persistCheckpointSave();
+            }
+        }
+    }
+
+    private void resolveAbilityGates() {
+        if (playerHealth.defeated()) {
+            return;
+        }
+        Aabb playerBounds = player.bounds();
+        for (RoomDefinition.AbilityGateDefinition gate : room.abilityGates()) {
+            if (unlockedAbilityIds.contains(gate.requiredAbilityId())) {
+                continue;
+            }
+            Aabb gateBounds = new Aabb(gate.x(), gate.y(), gate.width(), gate.height());
+            if (!playerBounds.overlaps(gateBounds)) {
+                continue;
+            }
+            float playerCenterX = playerBounds.x() + playerBounds.width() * 0.5f;
+            float gateCenterX = gateBounds.x() + gateBounds.width() * 0.5f;
+            float resolvedX = playerCenterX < gateCenterX
+                    ? gateBounds.x() - playerBounds.width()
+                    : gateBounds.right();
+            player.setPosition(resolvedX, player.y());
+            player.setVelocityX(0.0f);
+            playerDashSeconds = 0.0f;
+            playerBounds = player.bounds();
+        }
+    }
+
+    private void startPlayerDash(PlayerInput input) {
+        if (!unlockedAbilityIds.contains(ABILITY_DASH)
+                || playerHealth.defeated()
+                || playerHitStunTimer.stunned()
+                || !attackTimeline.acceptingNewAttack()
+                || playerDashCooldownSeconds > 0.0f
+                || playerDashSeconds > 0.0f) {
+            return;
+        }
+        if (input.left() && !input.right()) {
+            playerDashDirection = -1;
+        } else if (input.right() && !input.left()) {
+            playerDashDirection = 1;
+        } else {
+            playerDashDirection = facingRight ? 1 : -1;
+        }
+        playerDashSeconds = PLAYER_DASH_DURATION_SECONDS;
+        playerDashCooldownSeconds = PLAYER_DASH_COOLDOWN_SECONDS;
+        player.setVelocityY(0.0f);
+        state = PlayerState.RUN;
+    }
+
+    private void updatePlayerDash(float deltaSeconds) {
+        updatePlayerDashCooldown(deltaSeconds);
+        playerDashSeconds = Math.max(0.0f, playerDashSeconds - deltaSeconds);
+        float velocityX = playerDashDirection * PLAYER_DASH_SPEED;
+        player.setVelocityX(velocityX);
+        player.setVelocityY(0.0f);
+        MovementResult result = playerDashMover.move(player, grid, velocityX * deltaSeconds, 0.0f);
+        if ((result.hitLeft() && velocityX < 0.0f) || (result.hitRight() && velocityX > 0.0f)) {
+            playerDashSeconds = 0.0f;
+            player.setVelocityX(0.0f);
+        }
+        if (playerDashSeconds <= 0.0f) {
+            player.setVelocityX(0.0f);
+        }
+        state = PlayerState.RUN;
+    }
+
+    private void updatePlayerDashCooldown(float deltaSeconds) {
+        playerDashCooldownSeconds = Math.max(0.0f, playerDashCooldownSeconds - deltaSeconds);
+    }
+
     private void updateDeathRespawn(float deltaSeconds) {
         if (!playerHealth.defeated()) {
             deathRespawnSeconds = 0.0f;
@@ -427,6 +537,8 @@ final class TestRoomScene implements Scene {
         state = PlayerState.IDLE;
         facingRight = true;
         attackFacingRight = true;
+        playerDashSeconds = 0.0f;
+        playerDashCooldownSeconds = 0.0f;
     }
 
     private void clearTransientCombatState() {
@@ -434,6 +546,7 @@ final class TestRoomScene implements Scene {
         playerHitStunTimer.reset();
         currentAttackHitbox = null;
         attackTimeline.reset();
+        playerDashSeconds = 0.0f;
     }
 
     private RoomDefinition.SpawnPoint findSpawn(String spawnId, float fallbackX, float fallbackY) {
@@ -1088,6 +1201,27 @@ final class TestRoomScene implements Scene {
                 ), CHECKPOINT_COLOR);
             }
         }
+        for (RoomDefinition.AbilityPickupDefinition pickup : room.abilityPickups()) {
+            if (!unlockedAbilityIds.contains(pickup.abilityId())) {
+                debugGeometryBuilder.addAabb(drawList, new Aabb(
+                        pickup.x(),
+                        pickup.y(),
+                        pickup.width(),
+                        pickup.height()
+                ), ABILITY_PICKUP_COLOR);
+            }
+        }
+        for (RoomDefinition.AbilityGateDefinition gate : room.abilityGates()) {
+            DebugColor color = unlockedAbilityIds.contains(gate.requiredAbilityId())
+                    ? ABILITY_GATE_UNLOCKED_COLOR
+                    : ABILITY_GATE_LOCKED_COLOR;
+            debugGeometryBuilder.addAabb(drawList, new Aabb(
+                    gate.x(),
+                    gate.y(),
+                    gate.width(),
+                    gate.height()
+            ), color);
+        }
         debugRenderer.render(drawList);
     }
 
@@ -1561,9 +1695,11 @@ final class TestRoomScene implements Scene {
                 + " | hitPause=" + hitPauseTimer.paused()
                 + " | playerStun=" + playerHitStunTimer.stunned()
                 + " | playerHP=" + playerHealth.currentHealth()
+                + " | abilities=" + unlockedAbilityIds
+                + " | dash=" + playerDashSeconds
                 + " | enemiesAlive=" + aliveEnemyCount()
                 + " | selectedAI=" + selectedEnemyState()
-                + " | A/D move, Space jump, J attack, R reset, Esc quit");
+                + " | A/D move, Space jump, J attack, Shift/K dash, R reset, Esc quit");
     }
 
     private String selectedEnemyState() {

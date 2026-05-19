@@ -36,10 +36,13 @@ Controls:
 
 - `A/D` or arrow keys: move
 - `Space` or `Up`: jump
+- `Shift` or `K`: dash after collecting the dash pickup
 - `J`: attack
 - `R`: reset player, enemy, and combat state
 - Walk into cyan door triggers: move between test rooms
 - Walk through green checkpoint triggers: update death respawn point and write local sample save
+- Walk into the blue dash pickup: unlock dash and persist it in the local sample save
+- Red ability gates block the player until the required ability is unlocked
 - `Esc`: quit
 - Left-side editor buttons: add slime, goblin, flying eye, skeleton, or mushroom near the player
 - Click an enemy body, then click `Remove Selected`: remove that specific enemy from the room
@@ -96,6 +99,7 @@ Implemented first because it blocks every later gameplay feature:
 - Door and checkpoint triggers are visible in the debug room layer.
 - The sample can transition between two test rooms and respawn the player at the latest checkpoint after death or `R`.
 - Checkpoint and visited-room save data is serialized by `engine-save` and loaded on sample startup from `.umbra2d/sample-save.json`.
+- Ability unlock state is serialized by `engine-save`; the sample dash pickup persists across restart and gates read that state.
 - Graybox combat sample with player slash, multiple moving enemies, anchored hitbox movement, contact damage, knockback, HP state, hit pause, hit stun, active hitbox debug, enemy hurtboxes, and reset.
 
 Sprite assets are loaded from `../assets` by default. Override with:

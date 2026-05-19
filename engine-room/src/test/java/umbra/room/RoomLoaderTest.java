@@ -139,6 +139,29 @@ final class RoomLoaderTest {
     }
 
     @Test
+    void loadsAbilityPickupsAndGates() {
+        RoomDefinition room = new RoomLoader().load(new StringReader("""
+                {
+                  "room_id": "forest_test_01",
+                  "biome_id": "forest",
+                  "width_tiles": 6,
+                  "height_tiles": 4,
+                  "tile_size": 32,
+                  "solid_tiles": [[0,0],[1,0],[2,0],[3,0]],
+                  "spawns": [{"id":"entry_left","type":"player_spawn","x":64,"y":64}],
+                  "doors": [{"id":"right_exit","x":184,"y":32,"w":8,"h":64,"target_room":"self","target_spawn":"entry_left"}],
+                  "ability_pickups": [{"id":"dash_pickup","ability_id":"dash","x":96,"y":64,"w":24,"h":24}],
+                  "ability_gates": [{"id":"dash_gate","required_ability_id":"dash","x":128,"y":32,"w":16,"h":64}]
+                }
+                """));
+
+        assertEquals(1, room.abilityPickups().size());
+        assertEquals("dash", room.abilityPickups().get(0).abilityId());
+        assertEquals(1, room.abilityGates().size());
+        assertEquals("dash", room.abilityGates().get(0).requiredAbilityId());
+    }
+
+    @Test
     void rejectsInvalidTileSizeForV1() {
         RoomLoader loader = new RoomLoader();
 

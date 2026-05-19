@@ -34,6 +34,12 @@
   "doors": [
     { "id": "right_exit", "x": 1248, "y": 32, "w": 24, "h": 96, "target_room": "forest_test_02", "target_spawn": "entry_left" }
   ],
+  "ability_pickups": [
+    { "id": "dash_pickup", "ability_id": "dash", "x": 224, "y": 64, "w": 24, "h": 24 }
+  ],
+  "ability_gates": [
+    { "id": "dash_gate", "required_ability_id": "dash", "x": 1184, "y": 32, "w": 24, "h": 96 }
+  ],
   "camera_zones": [
     { "id": "main", "x": 0, "y": 0, "w": 1280, "h": 704 }
   ]
