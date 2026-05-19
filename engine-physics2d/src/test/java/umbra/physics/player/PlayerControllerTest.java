@@ -35,6 +35,34 @@ final class PlayerControllerTest {
         assertTrue(body.velocityY() > 0.0f);
     }
 
+    @Test
+    void unlockedAirJumpCanTriggerOnceBeforeLanding() {
+        CollisionGrid grid = floorGrid();
+        KinematicBody body = new KinematicBody(48, 32, 18, 38);
+        PlayerController controller = new PlayerController(PlayerControllerConfig.metroidvaniaDefaults());
+
+        controller.update(new PlayerInput(false, false, true, true), body, grid, 1.0f / 60.0f, 1);
+        controller.update(new PlayerInput(false, false, false, false), body, grid, 1.0f / 60.0f, 1);
+        body.setVelocityY(-25.0f);
+        controller.update(new PlayerInput(false, false, true, true), body, grid, 1.0f / 60.0f, 1);
+
+        assertTrue(body.velocityY() > 0.0f);
+    }
+
+    @Test
+    void airJumpDoesNotTriggerWhenLocked() {
+        CollisionGrid grid = floorGrid();
+        KinematicBody body = new KinematicBody(48, 96, 18, 38);
+        PlayerController controller = new PlayerController(PlayerControllerConfig.metroidvaniaDefaults());
+
+        controller.update(new PlayerInput(false, false, true, true), body, grid, 1.0f / 60.0f);
+        controller.update(new PlayerInput(false, false, false, false), body, grid, 1.0f / 60.0f);
+        body.setVelocityY(-25.0f);
+        controller.update(new PlayerInput(false, false, true, true), body, grid, 1.0f / 60.0f);
+
+        assertTrue(body.velocityY() < 0.0f);
+    }
+
     private CollisionGrid floorGrid() {
         CollisionGrid grid = new CollisionGrid(10, 8, 32);
         for (int x = 0; x < grid.widthTiles(); x++) {

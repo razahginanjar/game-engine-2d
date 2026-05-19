@@ -15,6 +15,7 @@ public final class PlayerController {
     private float coyoteTimer;
     private float jumpBufferTimer;
     private boolean grounded;
+    private int availableAirJumps;
 
     public PlayerController(PlayerControllerConfig config) {
         this.config = config;
@@ -22,6 +23,13 @@ public final class PlayerController {
     }
 
     public PlayerState update(PlayerInput input, KinematicBody body, CollisionGrid grid, float deltaSeconds) {
+        return update(input, body, grid, deltaSeconds, 0);
+    }
+
+    public PlayerState update(PlayerInput input, KinematicBody body, CollisionGrid grid, float deltaSeconds, int maxAirJumps) {
+        if (maxAirJumps < 0) {
+            throw new IllegalArgumentException("maxAirJumps must not be negative");
+        }
         if (input.jumpPressed()) {
             jumpBufferTimer = config.jumpBufferSeconds();
         } else {
@@ -31,12 +39,13 @@ public final class PlayerController {
         grounded = isGrounded(body, grid);
         if (grounded) {
             coyoteTimer = config.coyoteTimeSeconds();
+            availableAirJumps = maxAirJumps;
         } else {
             coyoteTimer = Math.max(0.0f, coyoteTimer - deltaSeconds);
         }
 
         updateHorizontal(input, body, deltaSeconds);
-        tryStartJump(body);
+        tryStartJump(body, maxAirJumps);
         cutJumpWhenReleased(input, body);
         applyGravity(body, deltaSeconds);
 
@@ -54,11 +63,15 @@ public final class PlayerController {
             body.setVelocityY(0.0f);
             grounded = true;
             coyoteTimer = config.coyoteTimeSeconds();
-            tryStartJump(body);
+            availableAirJumps = maxAirJumps;
+            tryStartJump(body, maxAirJumps);
         } else if (result.hitCeiling() && body.velocityY() > 0.0f) {
             body.setVelocityY(0.0f);
         } else {
             grounded = isGrounded(body, grid);
+            if (grounded) {
+                availableAirJumps = maxAirJumps;
+            }
         }
 
         if (grounded && Math.abs(body.velocityX()) < 0.01f) {
@@ -90,12 +103,22 @@ public final class PlayerController {
         body.setVelocityX(moveToward(body.velocityX(), targetSpeed, acceleration * deltaSeconds));
     }
 
-    private void tryStartJump(KinematicBody body) {
-        if (jumpBufferTimer > 0.0f && coyoteTimer > 0.0f) {
+    private void tryStartJump(KinematicBody body, int maxAirJumps) {
+        if (jumpBufferTimer <= 0.0f) {
+            return;
+        }
+        if (coyoteTimer > 0.0f) {
             body.setVelocityY(config.jumpSpeedPixelsPerSecond());
             jumpBufferTimer = 0.0f;
             coyoteTimer = 0.0f;
             grounded = false;
+            availableAirJumps = maxAirJumps;
+            return;
+        }
+        if (!grounded && availableAirJumps > 0) {
+            body.setVelocityY(config.jumpSpeedPixelsPerSecond());
+            jumpBufferTimer = 0.0f;
+            availableAirJumps--;
         }
     }
 

@@ -121,6 +121,7 @@ final class TestRoomScene implements Scene {
     private static final String START_ROOM_ID = "forest_test_01";
     private static final String DEFAULT_PLAYER_SPAWN_ID = "entry_left";
     private static final String ABILITY_DASH = "dash";
+    private static final String ABILITY_DOUBLE_JUMP = "double_jump";
     private static final String SAMPLE_SAVE_PATH = ".umbra2d/sample-save.json";
     private static final float CHECKPOINT_TRIGGER_WIDTH = 40.0f;
     private static final float CHECKPOINT_TRIGGER_HEIGHT = 48.0f;
@@ -289,7 +290,7 @@ final class TestRoomScene implements Scene {
                 updatePlayerDash(deltaSeconds);
             } else {
                 updatePlayerDashCooldown(deltaSeconds);
-                state = controller.update(input, player, grid, deltaSeconds);
+                state = controller.update(input, player, grid, deltaSeconds, unlockedAirJumps());
             }
         }
         updateAbilityPickups();
@@ -504,6 +505,10 @@ final class TestRoomScene implements Scene {
 
     private void updatePlayerDashCooldown(float deltaSeconds) {
         playerDashCooldownSeconds = Math.max(0.0f, playerDashCooldownSeconds - deltaSeconds);
+    }
+
+    private int unlockedAirJumps() {
+        return abilityState.has(ABILITY_DOUBLE_JUMP) ? 1 : 0;
     }
 
     private void updateDeathRespawn(float deltaSeconds) {
