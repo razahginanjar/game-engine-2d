@@ -62,6 +62,9 @@ import umbra.render.sprite.SpriteDrawCommand;
 import umbra.render.sprite.SpriteDrawList;
 import umbra.room.RoomDefinition;
 import umbra.room.RoomLoader;
+import umbra.room.CheckpointState;
+import umbra.room.RoomTransitionRequest;
+import umbra.room.RoomTriggerResolver;
 
 import java.io.IOException;
 import java.io.InputStreamReader;
@@ -70,6 +73,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 
 final class TestRoomScene implements Scene {
     private static final int PLAYER_ENTITY_ID = 1;
@@ -115,6 +119,7 @@ final class TestRoomScene implements Scene {
     private final LibGdxDebugShapeRenderer debugRenderer;
     private final DebugGeometryBuilder debugGeometryBuilder = new DebugGeometryBuilder();
     private final AnimationSetValidator animationSetValidator = new AnimationSetValidator();
+    private final RoomTriggerResolver roomTriggerResolver = new RoomTriggerResolver();
     private final Camera camera;
     private final EngineConfig config;
     private RoomDefinition room;
@@ -160,8 +165,7 @@ final class TestRoomScene implements Scene {
     private EnemyActor selectedEnemy;
     private PlayerState state = PlayerState.IDLE;
     private String currentRoomId = START_ROOM_ID;
-    private String checkpointRoomId = START_ROOM_ID;
-    private String checkpointSpawnId = DEFAULT_PLAYER_SPAWN_ID;
+    private final CheckpointState checkpointState = new CheckpointState(START_ROOM_ID, DEFAULT_PLAYER_SPAWN_ID);
     private float deathRespawnSeconds;
 
     TestRoomScene(SpriteBatch spriteBatch, ShapeRenderer shapes, Camera camera, EngineConfig config) {
@@ -288,13 +292,16 @@ final class TestRoomScene implements Scene {
             return;
         }
         Aabb playerBounds = player.bounds();
-        for (RoomDefinition.DoorDefinition door : room.doors()) {
-            Aabb doorBounds = new Aabb(door.x(), door.y(), door.width(), door.height());
-            if (intersects(playerBounds, doorBounds)) {
-                String targetRoomId = door.targetRoom().equals("self") ? currentRoomId : door.targetRoom();
-                transitionToRoom(targetRoomId, door.targetSpawn());
-                return;
-            }
+        Optional<RoomTransitionRequest> request = roomTriggerResolver.findDoorTransition(
+                room,
+                currentRoomId,
+                playerBounds.x(),
+                playerBounds.y(),
+                playerBounds.width(),
+                playerBounds.height()
+        );
+        if (request.isPresent()) {
+            transitionToRoom(request.get().targetRoomId(), request.get().targetSpawnId());
         }
     }
 
@@ -315,21 +322,17 @@ final class TestRoomScene implements Scene {
             return;
         }
         Aabb playerBounds = player.bounds();
-        for (RoomDefinition.SpawnPoint spawn : room.spawns()) {
-            if (!spawn.type().equals("checkpoint")) {
-                continue;
-            }
-            Aabb checkpointBounds = new Aabb(
-                    spawn.x() - CHECKPOINT_TRIGGER_WIDTH * 0.5f,
-                    spawn.y(),
-                    CHECKPOINT_TRIGGER_WIDTH,
-                    CHECKPOINT_TRIGGER_HEIGHT
-            );
-            if (intersects(playerBounds, checkpointBounds)) {
-                checkpointRoomId = currentRoomId;
-                checkpointSpawnId = spawn.id();
-                return;
-            }
+        Optional<String> checkpointId = roomTriggerResolver.findCheckpoint(
+                room,
+                playerBounds.x(),
+                playerBounds.y(),
+                playerBounds.width(),
+                playerBounds.height(),
+                CHECKPOINT_TRIGGER_WIDTH,
+                CHECKPOINT_TRIGGER_HEIGHT
+        );
+        if (checkpointId.isPresent()) {
+            checkpointState.activate(currentRoomId, checkpointId.get());
         }
     }
 
@@ -345,7 +348,8 @@ final class TestRoomScene implements Scene {
     }
 
     private void respawnAtCheckpoint() {
-        transitionToRoom(checkpointRoomId, checkpointSpawnId);
+        RoomTransitionRequest request = checkpointState.respawnRequest();
+        transitionToRoom(request.targetRoomId(), request.targetSpawnId());
         playerHealth.reset();
         deathRespawnSeconds = 0.0f;
         playerAnimator.restart(playerAnimationSet.clip("idle"));
@@ -365,13 +369,6 @@ final class TestRoomScene implements Scene {
         playerHitStunTimer.reset();
         currentAttackHitbox = null;
         attackTimeline.reset();
-    }
-
-    private boolean intersects(Aabb first, Aabb second) {
-        return first.x() < second.right()
-                && first.right() > second.x()
-                && first.y() < second.top()
-                && first.top() > second.y();
     }
 
     private RoomDefinition.SpawnPoint findSpawn(String spawnId, float fallbackX, float fallbackY) {
@@ -1455,7 +1452,7 @@ final class TestRoomScene implements Scene {
 
     private void drawHud() {
         Gdx.graphics.setTitle("Umbra2D | " + room.roomId()
-                + " | checkpoint=" + checkpointRoomId + ":" + checkpointSpawnId
+                + " | checkpoint=" + checkpointState.roomId() + ":" + checkpointState.spawnId()
                 + " | " + state
                 + " | attack=" + attackTimeline.phase()
                 + " | hitPause=" + hitPauseTimer.paused()
