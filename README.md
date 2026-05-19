@@ -2,7 +2,9 @@
 
 Focused Java 17 + Maven + LibGDX engine for a room-based Metroidvania action platformer.
 
-The first milestone follows the project blueprint: build a playable vertical slice foundation before generic engine systems. The current implementation starts with a runnable desktop shell, deterministic fixed-step updates, graybox tile collision, a kinematic player controller, and tests.
+The project direction is an internal game-creation toolchain for a specific class of 2D games, not a generic public engine for every genre. See [Internal Game Toolchain Direction](docs/internal-game-toolchain-direction.md).
+
+The first milestone follows the project blueprint: build a playable vertical slice foundation before broader tooling systems. The current implementation starts with a runnable desktop shell, deterministic fixed-step updates, graybox tile collision, a kinematic player controller, and tests.
 
 ## Requirements
 
