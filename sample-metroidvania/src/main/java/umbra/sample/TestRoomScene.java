@@ -104,7 +104,7 @@ final class TestRoomScene implements Scene {
     private static final String PLAYER_ATTACK_TEXTURE = "player_attack";
     private static final String PLAYER_HIT_TEXTURE = "player_hit";
     private static final String PLAYER_DEATH_TEXTURE = "player_death";
-    private static final String SLIME_TEXTURE_PREFIX = "slime_green_move_";
+    private static final String SLIME_TEXTURE_PREFIX = "slime_green_";
     private static final float EDITOR_BUTTON_X = 12.0f;
     private static final float EDITOR_BUTTON_TOP_Y = 12.0f;
     private static final float EDITOR_BUTTON_WIDTH = 132.0f;
@@ -188,7 +188,8 @@ final class TestRoomScene implements Scene {
         this.config = config;
         this.playerAnimationSet = loadAnimationSet("/metadata/player_knight.anim.json",
                 List.of("idle", "run", "jump", "fall", "attack", "hit", "death"));
-        this.slimeAnimationSet = loadAnimationSet("/metadata/slime_green.anim.json", List.of("move"));
+        this.slimeAnimationSet = loadAnimationSet("/metadata/slime_green.anim.json",
+                List.of("move", "idle", "attack", "take_hit", "death"));
         this.goblinAnimationSet = loadAnimationSet("/metadata/goblin.anim.json",
                 List.of("move", "idle", "attack", "take_hit", "death"));
         this.flyingEyeAnimationSet = loadAnimationSet("/metadata/flying_eye.anim.json",
@@ -557,10 +558,10 @@ final class TestRoomScene implements Scene {
                 28.0f,
                 18.0f,
                 new HitboxDefinition(26.0f, 18.0f, 2.0f, 0.0f),
-                56.0f,
-                38.0f,
+                96.0f,
+                96.0f,
                 0.0f,
-                -8.0f,
+                -35.0f,
                 new DebugColor(0.30f, 0.85f, 0.32f, 1.0f),
                 PatrolControllerConfig.slimeDefaults(),
                 enemyBrainConfig(180.0f, 64.0f, 34.0f, 0.20f, 0.50f, 44.0f, 0.35f, 0.18f),
@@ -1006,6 +1007,10 @@ final class TestRoomScene implements Scene {
         if (enemy.brain.state() == EnemyAiState.ATTACK) {
             return clipOrMove(enemy.animationSet, "attack");
         }
+        if (enemy.kind == EnemyKind.SLIME
+                && (enemy.brain.state() == EnemyAiState.CHASE || enemy.brain.state() == EnemyAiState.EVADE)) {
+            return clipOrMove(enemy.animationSet, "slide_loop");
+        }
         if (enemy.kind == EnemyKind.SKELETON && enemy.usesShieldCaution()
                 && (enemy.brain.state() == EnemyAiState.CHASE || enemy.brain.state() == EnemyAiState.CAUTIOUS)) {
             return clipOrMove(enemy.animationSet, "shield");
@@ -1291,15 +1296,12 @@ final class TestRoomScene implements Scene {
         registerTextureIfPresent(PLAYER_HIT_TEXTURE, playerSheetPath(assetRoot, "_Hit.png"));
         registerTextureIfPresent(PLAYER_DEATH_TEXTURE, playerSheetPath(assetRoot, "_Death.png"));
 
-        for (int frame = 0; frame < 30; frame++) {
-            String frameId = SLIME_TEXTURE_PREFIX + String.format("%05d", frame);
-            registerTextureIfPresent(frameId, assetRoot.resolve(Path.of(
-                    "monster",
-                    "Slimes",
-                    "SlimeGreen",
-                    "SlimeBasic_" + String.format("%05d", frame) + ".png"
-            )));
-        }
+        registerSlimeFrameSequence(assetRoot, "move", "walk", "walk", 6);
+        registerSlimeFrameSequence(assetRoot, "idle", "idle", "idle", 8);
+        registerSlimeFrameSequence(assetRoot, "attack", "attack", "attack", 12);
+        registerSlimeFrameSequence(assetRoot, "take_hit", "hurt1", "hurt1", 5);
+        registerSlimeFrameSequence(assetRoot, "death", "death", "death", 10);
+        registerSlimeFrameSequence(assetRoot, "slide_loop", "slide_loop", "slide_loop", 6);
         registerFantasyMonsterSheet(assetRoot, "goblin_move", "Goblin", "Run-sheet.png");
         registerFantasyMonsterSheet(assetRoot, "goblin_idle", "Goblin", "Idle-sheet.png");
         registerFantasyMonsterSheet(assetRoot, "goblin_attack", "Goblin", "Attack-sheet.png");
@@ -1347,6 +1349,34 @@ final class TestRoomScene implements Scene {
                 creatureFolder,
                 fileName
         )));
+    }
+
+    private void registerSlimeFrameSequence(
+            Path assetRoot,
+            String clipId,
+            String assetClipFolder,
+            String assetFramePrefix,
+            int frameCount
+    ) {
+        Path clipRoot = assetRoot.resolve(Path.of(
+                "monster",
+                "Slime_Enemy_Pixel_Monsters_Vol_1",
+                "Slime_Enemy_Pixel_Monsters_Vol_1",
+                "Slime",
+                "frames",
+                "green",
+                assetClipFolder
+        ));
+        for (int frame = 0; frame < frameCount; frame++) {
+            registerTextureIfPresent(
+                    slimeTextureId(clipId, frame),
+                    clipRoot.resolve(assetFramePrefix + "_" + String.format("%02d", frame) + ".png")
+            );
+        }
+    }
+
+    private String slimeTextureId(String clipId, int frame) {
+        return SLIME_TEXTURE_PREFIX + clipId + "_" + String.format("%02d", frame);
     }
 
     private enum EnemyKind {

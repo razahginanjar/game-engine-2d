@@ -4,40 +4,111 @@
     {
       "id": "move",
       "texture_ids": [
-        "slime_green_move_00000",
-        "slime_green_move_00001",
-        "slime_green_move_00002",
-        "slime_green_move_00003",
-        "slime_green_move_00004",
-        "slime_green_move_00005",
-        "slime_green_move_00006",
-        "slime_green_move_00007",
-        "slime_green_move_00008",
-        "slime_green_move_00009",
-        "slime_green_move_00010",
-        "slime_green_move_00011",
-        "slime_green_move_00012",
-        "slime_green_move_00013",
-        "slime_green_move_00014",
-        "slime_green_move_00015",
-        "slime_green_move_00016",
-        "slime_green_move_00017",
-        "slime_green_move_00018",
-        "slime_green_move_00019",
-        "slime_green_move_00020",
-        "slime_green_move_00021",
-        "slime_green_move_00022",
-        "slime_green_move_00023",
-        "slime_green_move_00024",
-        "slime_green_move_00025",
-        "slime_green_move_00026",
-        "slime_green_move_00027",
-        "slime_green_move_00028",
-        "slime_green_move_00029"
+        "slime_green_move_00",
+        "slime_green_move_01",
+        "slime_green_move_02",
+        "slime_green_move_03",
+        "slime_green_move_04",
+        "slime_green_move_05"
       ],
-      "frame_width": 376,
-      "frame_height": 256,
-      "frame_count": 30,
+      "frame_width": 80,
+      "frame_height": 80,
+      "frame_count": 6,
+      "fps": 10,
+      "loop": true
+    },
+    {
+      "id": "idle",
+      "texture_ids": [
+        "slime_green_idle_00",
+        "slime_green_idle_01",
+        "slime_green_idle_02",
+        "slime_green_idle_03",
+        "slime_green_idle_04",
+        "slime_green_idle_05",
+        "slime_green_idle_06",
+        "slime_green_idle_07"
+      ],
+      "frame_width": 80,
+      "frame_height": 80,
+      "frame_count": 8,
+      "fps": 8,
+      "loop": true
+    },
+    {
+      "id": "attack",
+      "texture_ids": [
+        "slime_green_attack_00",
+        "slime_green_attack_01",
+        "slime_green_attack_02",
+        "slime_green_attack_03",
+        "slime_green_attack_04",
+        "slime_green_attack_05",
+        "slime_green_attack_06",
+        "slime_green_attack_07",
+        "slime_green_attack_08",
+        "slime_green_attack_09",
+        "slime_green_attack_10",
+        "slime_green_attack_11"
+      ],
+      "frame_width": 80,
+      "frame_height": 80,
+      "frame_count": 12,
+      "fps": 14,
+      "loop": false,
+      "events": [
+        { "frame": 7, "id": "attack_active" },
+        { "frame": 8, "id": "attack_active" }
+      ]
+    },
+    {
+      "id": "take_hit",
+      "texture_ids": [
+        "slime_green_take_hit_00",
+        "slime_green_take_hit_01",
+        "slime_green_take_hit_02",
+        "slime_green_take_hit_03",
+        "slime_green_take_hit_04"
+      ],
+      "frame_width": 80,
+      "frame_height": 80,
+      "frame_count": 5,
+      "fps": 12,
+      "loop": false
+    },
+    {
+      "id": "death",
+      "texture_ids": [
+        "slime_green_death_00",
+        "slime_green_death_01",
+        "slime_green_death_02",
+        "slime_green_death_03",
+        "slime_green_death_04",
+        "slime_green_death_05",
+        "slime_green_death_06",
+        "slime_green_death_07",
+        "slime_green_death_08",
+        "slime_green_death_09"
+      ],
+      "frame_width": 80,
+      "frame_height": 80,
+      "frame_count": 10,
+      "fps": 10,
+      "loop": false
+    },
+    {
+      "id": "slide_loop",
+      "texture_ids": [
+        "slime_green_slide_loop_00",
+        "slime_green_slide_loop_01",
+        "slime_green_slide_loop_02",
+        "slime_green_slide_loop_03",
+        "slime_green_slide_loop_04",
+        "slime_green_slide_loop_05"
+      ],
+      "frame_width": 80,
+      "frame_height": 80,
+      "frame_count": 6,
       "fps": 12,
       "loop": true
     }

@@ -52,7 +52,7 @@ Initial source asset mapping:
 
 - Knight: `../assets/char/FreeKnight_v1/Colour1/NoOutline/120x80_PNGSheets`
 - Mossy tiles: `../assets/tiles/Mossy Tileset`
-- Slimes: `../assets/monster/Slimes`
+- Slimes: `../assets/monster/Slime_Enemy_Pixel_Monsters_Vol_1/Slime_Enemy_Pixel_Monsters_Vol_1/Slime/frames`
 - Fantasy creatures: `../assets/monster/Monsters_Creatures_Fantasy/Monsters_Creatures_Fantasy`
 
 Do not commit local absolute paths, credentials, generated build folders, IDE state, or raw asset archives unless licensing and packaging are explicitly approved.
@@ -88,7 +88,7 @@ Implemented first because it blocks every later gameplay feature:
 - Deterministic hit-pause timer for impact freeze frames.
 - Deterministic hit-stun timer for post-hit action lock.
 - Metadata-driven animation clips for sheet-based sprites and image-sequence sprites.
-- Animated sample sprites for player idle/run/jump/fall/attack/hit/death; slime movement; and fantasy monster move/attack/take-hit/death clips where source assets provide them.
+- Animated sample sprites for player idle/run/jump/fall/attack/hit/death; slime idle/move/slide/attack/take-hit/death; and fantasy monster move/attack/take-hit/death clips where source assets provide them.
 - Skeleton shield animation metadata is registered for the next guard-behavior increment.
 - Enemy AI vision behavior: patrol outside sight, chase visible player, become cautious at close range, attack after windup, and probabilistically evade nearby player attacks.
 - Enemy attack damage uses facing-aware attack hitboxes: goblin/skeleton weapon enemies reach about one player-width forward, while slime/flying eye/mushroom use smaller close-range hitboxes.
