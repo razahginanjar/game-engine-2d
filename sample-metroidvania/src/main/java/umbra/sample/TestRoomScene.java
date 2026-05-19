@@ -65,6 +65,8 @@ import umbra.room.RoomLoader;
 import umbra.room.CheckpointState;
 import umbra.room.RoomTransitionRequest;
 import umbra.room.RoomTriggerResolver;
+import umbra.save.SaveGame;
+import umbra.save.SaveGameCodec;
 
 import java.io.IOException;
 import java.io.InputStreamReader;
@@ -107,6 +109,7 @@ final class TestRoomScene implements Scene {
     private static final float EDITOR_BUTTON_GAP = 6.0f;
     private static final String START_ROOM_ID = "forest_test_01";
     private static final String DEFAULT_PLAYER_SPAWN_ID = "entry_left";
+    private static final String SAMPLE_SAVE_PATH = ".umbra2d/sample-save.json";
     private static final float CHECKPOINT_TRIGGER_WIDTH = 40.0f;
     private static final float CHECKPOINT_TRIGGER_HEIGHT = 48.0f;
     private static final float DEATH_RESPAWN_DELAY_SECONDS = 1.0f;
@@ -120,6 +123,7 @@ final class TestRoomScene implements Scene {
     private final DebugGeometryBuilder debugGeometryBuilder = new DebugGeometryBuilder();
     private final AnimationSetValidator animationSetValidator = new AnimationSetValidator();
     private final RoomTriggerResolver roomTriggerResolver = new RoomTriggerResolver();
+    private final SaveGameCodec saveGameCodec = new SaveGameCodec();
     private final Camera camera;
     private final EngineConfig config;
     private RoomDefinition room;
@@ -187,6 +191,7 @@ final class TestRoomScene implements Scene {
         this.mushroomAnimationSet = loadAnimationSet("/metadata/mushroom.anim.json",
                 List.of("move", "idle", "attack", "take_hit", "death"));
         loadExternalSprites();
+        loadCheckpointSave();
         this.room = loadRoom(currentRoomId);
         this.grid = createGrid(room);
         RoomDefinition.SpawnPoint playerSpawn = findSpawn(DEFAULT_PLAYER_SPAWN_ID, 96.0f, 160.0f);
@@ -287,6 +292,31 @@ final class TestRoomScene implements Scene {
         return createdGrid;
     }
 
+    private void loadCheckpointSave() {
+        FileHandle saveFile = Gdx.files.local(SAMPLE_SAVE_PATH);
+        if (!saveFile.exists()) {
+            return;
+        }
+        try {
+            SaveGame saveGame = saveGameCodec.decode(saveFile.readString(StandardCharsets.UTF_8.name()));
+            checkpointState.activate(saveGame.checkpointRoomId(), saveGame.checkpointSpawnId());
+            currentRoomId = saveGame.checkpointRoomId();
+        } catch (RuntimeException exception) {
+            Gdx.app.error("Umbra2D", "Ignoring invalid sample save: " + SAMPLE_SAVE_PATH, exception);
+        }
+    }
+
+    private void persistCheckpointSave() {
+        try {
+            FileHandle saveFile = Gdx.files.local(SAMPLE_SAVE_PATH);
+            saveFile.parent().mkdirs();
+            SaveGame saveGame = new SaveGame(checkpointState.roomId(), checkpointState.spawnId());
+            saveFile.writeString(saveGameCodec.encode(saveGame), false, StandardCharsets.UTF_8.name());
+        } catch (RuntimeException exception) {
+            Gdx.app.error("Umbra2D", "Failed to write sample save: " + SAMPLE_SAVE_PATH, exception);
+        }
+    }
+
     private void updateDoorTransitions() {
         if (playerHealth.defeated()) {
             return;
@@ -332,7 +362,11 @@ final class TestRoomScene implements Scene {
                 CHECKPOINT_TRIGGER_HEIGHT
         );
         if (checkpointId.isPresent()) {
-            checkpointState.activate(currentRoomId, checkpointId.get());
+            String spawnId = checkpointId.get();
+            if (!checkpointState.roomId().equals(currentRoomId) || !checkpointState.spawnId().equals(spawnId)) {
+                checkpointState.activate(currentRoomId, spawnId);
+                persistCheckpointSave();
+            }
         }
     }
 

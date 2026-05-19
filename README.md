@@ -39,7 +39,7 @@ Controls:
 - `J`: attack
 - `R`: reset player, enemy, and combat state
 - Walk into cyan door triggers: move between test rooms
-- Walk through green checkpoint triggers: update death respawn point
+- Walk through green checkpoint triggers: update death respawn point and write local sample save
 - `Esc`: quit
 - Left-side editor buttons: add slime, goblin, flying eye, skeleton, or mushroom near the player
 - Click an enemy body, then click `Remove Selected`: remove that specific enemy from the room
@@ -95,6 +95,7 @@ Implemented first because it blocks every later gameplay feature:
 - Animation attack timing can be driven by frame events in animation metadata.
 - Door and checkpoint triggers are visible in the debug room layer.
 - The sample can transition between two test rooms and respawn the player at the latest checkpoint after death or `R`.
+- Checkpoint save data is serialized by `engine-save` and loaded on sample startup from `.umbra2d/sample-save.json`.
 - Graybox combat sample with player slash, multiple moving enemies, anchored hitbox movement, contact damage, knockback, HP state, hit pause, hit stun, active hitbox debug, enemy hurtboxes, and reset.
 
 Sprite assets are loaded from `../assets` by default. Override with:

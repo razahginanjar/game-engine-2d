@@ -5,6 +5,7 @@ target/
 *.log
 logs/
 diagnostics.zip
+.umbra2d/
 *.tmp
 *.bak
 .DS_Store
