@@ -95,7 +95,7 @@ Implemented first because it blocks every later gameplay feature:
 - Animation attack timing can be driven by frame events in animation metadata.
 - Door and checkpoint triggers are visible in the debug room layer.
 - The sample can transition between two test rooms and respawn the player at the latest checkpoint after death or `R`.
-- Checkpoint save data is serialized by `engine-save` and loaded on sample startup from `.umbra2d/sample-save.json`.
+- Checkpoint and visited-room save data is serialized by `engine-save` and loaded on sample startup from `.umbra2d/sample-save.json`.
 - Graybox combat sample with player slash, multiple moving enemies, anchored hitbox movement, contact damage, knockback, HP state, hit pause, hit stun, active hitbox debug, enemy hurtboxes, and reset.
 
 Sprite assets are loaded from `../assets` by default. Override with:

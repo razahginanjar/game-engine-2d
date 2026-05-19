@@ -62,6 +62,7 @@ import umbra.render.sprite.SpriteDrawCommand;
 import umbra.render.sprite.SpriteDrawList;
 import umbra.room.RoomDefinition;
 import umbra.room.RoomLoader;
+import umbra.room.RoomRegistry;
 import umbra.room.CheckpointState;
 import umbra.room.RoomTransitionRequest;
 import umbra.room.RoomTriggerResolver;
@@ -73,9 +74,11 @@ import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 
 final class TestRoomScene implements Scene {
     private static final int PLAYER_ENTITY_ID = 1;
@@ -113,6 +116,7 @@ final class TestRoomScene implements Scene {
     private static final float CHECKPOINT_TRIGGER_WIDTH = 40.0f;
     private static final float CHECKPOINT_TRIGGER_HEIGHT = 48.0f;
     private static final float DEATH_RESPAWN_DELAY_SECONDS = 1.0f;
+    private static final float ROOM_TRANSITION_LOCKOUT_SECONDS = 0.35f;
 
     private final SpriteBatch batch;
     private final ShapeRenderer shapes;
@@ -126,6 +130,7 @@ final class TestRoomScene implements Scene {
     private final SaveGameCodec saveGameCodec = new SaveGameCodec();
     private final Camera camera;
     private final EngineConfig config;
+    private final RoomRegistry roomRegistry;
     private RoomDefinition room;
     private CollisionGrid grid;
     private final AnimationSetDefinition playerAnimationSet;
@@ -170,7 +175,9 @@ final class TestRoomScene implements Scene {
     private PlayerState state = PlayerState.IDLE;
     private String currentRoomId = START_ROOM_ID;
     private final CheckpointState checkpointState = new CheckpointState(START_ROOM_ID, DEFAULT_PLAYER_SPAWN_ID);
+    private final Set<String> visitedRoomIds = new LinkedHashSet<>();
     private float deathRespawnSeconds;
+    private float roomTransitionLockoutSeconds;
 
     TestRoomScene(SpriteBatch spriteBatch, ShapeRenderer shapes, Camera camera, EngineConfig config) {
         this.batch = spriteBatch;
@@ -191,8 +198,10 @@ final class TestRoomScene implements Scene {
         this.mushroomAnimationSet = loadAnimationSet("/metadata/mushroom.anim.json",
                 List.of("move", "idle", "attack", "take_hit", "death"));
         loadExternalSprites();
+        this.roomRegistry = loadRoomRegistry();
+        visitedRoomIds.add(START_ROOM_ID);
         loadCheckpointSave();
-        this.room = loadRoom(currentRoomId);
+        this.room = roomRegistry.room(currentRoomId);
         this.grid = createGrid(room);
         RoomDefinition.SpawnPoint playerSpawn = findSpawn(DEFAULT_PLAYER_SPAWN_ID, 96.0f, 160.0f);
         this.player = new KinematicBody(playerSpawn.x(), playerSpawn.y(), 18.0f, 38.0f);
@@ -284,6 +293,13 @@ final class TestRoomScene implements Scene {
         }
     }
 
+    private RoomRegistry loadRoomRegistry() {
+        return new RoomRegistry(List.of(
+                loadRoom("forest_test_01"),
+                loadRoom("forest_test_02")
+        ));
+    }
+
     private CollisionGrid createGrid(RoomDefinition room) {
         CollisionGrid createdGrid = new CollisionGrid(room.widthTiles(), room.heightTiles(), room.tileSize());
         for (RoomDefinition.TileCell tile : room.solidTiles()) {
@@ -300,6 +316,7 @@ final class TestRoomScene implements Scene {
         try {
             SaveGame saveGame = saveGameCodec.decode(saveFile.readString(StandardCharsets.UTF_8.name()));
             checkpointState.activate(saveGame.checkpointRoomId(), saveGame.checkpointSpawnId());
+            visitedRoomIds.addAll(saveGame.visitedRoomIds());
             currentRoomId = saveGame.checkpointRoomId();
         } catch (RuntimeException exception) {
             Gdx.app.error("Umbra2D", "Ignoring invalid sample save: " + SAMPLE_SAVE_PATH, exception);
@@ -310,7 +327,12 @@ final class TestRoomScene implements Scene {
         try {
             FileHandle saveFile = Gdx.files.local(SAMPLE_SAVE_PATH);
             saveFile.parent().mkdirs();
-            SaveGame saveGame = new SaveGame(checkpointState.roomId(), checkpointState.spawnId());
+            SaveGame saveGame = new SaveGame(
+                    SaveGame.CURRENT_VERSION,
+                    checkpointState.roomId(),
+                    checkpointState.spawnId(),
+                    List.copyOf(visitedRoomIds)
+            );
             saveFile.writeString(saveGameCodec.encode(saveGame), false, StandardCharsets.UTF_8.name());
         } catch (RuntimeException exception) {
             Gdx.app.error("Umbra2D", "Failed to write sample save: " + SAMPLE_SAVE_PATH, exception);
@@ -319,6 +341,9 @@ final class TestRoomScene implements Scene {
 
     private void updateDoorTransitions() {
         if (playerHealth.defeated()) {
+            return;
+        }
+        if (roomTransitionLockoutSeconds > 0.0f) {
             return;
         }
         Aabb playerBounds = player.bounds();
@@ -337,13 +362,15 @@ final class TestRoomScene implements Scene {
 
     private void transitionToRoom(String roomId, String spawnId) {
         currentRoomId = roomId;
-        room = loadRoom(roomId);
+        visitedRoomIds.add(roomId);
+        room = roomRegistry.room(roomId);
         grid = createGrid(room);
         RoomDefinition.SpawnPoint spawn = findSpawn(spawnId, 96.0f, 160.0f);
         resetPlayerAt(spawn);
         clearTransientCombatState();
         createEnemies();
         selectedEnemy = null;
+        roomTransitionLockoutSeconds = ROOM_TRANSITION_LOCKOUT_SECONDS;
         clampCameraToRoom();
     }
 
@@ -373,6 +400,7 @@ final class TestRoomScene implements Scene {
     private void updateDeathRespawn(float deltaSeconds) {
         if (!playerHealth.defeated()) {
             deathRespawnSeconds = 0.0f;
+            roomTransitionLockoutSeconds = Math.max(0.0f, roomTransitionLockoutSeconds - deltaSeconds);
             return;
         }
         deathRespawnSeconds += deltaSeconds;
@@ -1487,6 +1515,7 @@ final class TestRoomScene implements Scene {
     private void drawHud() {
         Gdx.graphics.setTitle("Umbra2D | " + room.roomId()
                 + " | checkpoint=" + checkpointState.roomId() + ":" + checkpointState.spawnId()
+                + " | visited=" + visitedRoomIds.size()
                 + " | " + state
                 + " | attack=" + attackTimeline.phase()
                 + " | hitPause=" + hitPauseTimer.paused()
