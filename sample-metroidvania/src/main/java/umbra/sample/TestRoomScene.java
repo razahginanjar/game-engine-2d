@@ -964,8 +964,16 @@ final class TestRoomScene implements Scene {
             enemy.flightDirection *= -1;
             nextX = enemy.body.x() + enemy.flightDirection * enemy.flightSpeed * deltaSeconds;
         }
-        float nextY = enemy.spawnY + (float) Math.sin(enemy.flightAgeSeconds * 3.0f) * 8.0f;
-        enemy.body.setPosition(nextX, nextY);
+        float hoverTargetY = enemy.spawnY + (float) Math.sin(enemy.flightAgeSeconds * 3.0f) * 8.0f;
+        float nextY = approach(enemy.body.y(), hoverTargetY, enemy.flightSpeed * deltaSeconds);
+        enemy.body.setPosition(nextX, clampEnemyY(enemy, nextY));
+    }
+
+    private float approach(float current, float target, float maxDelta) {
+        if (current < target) {
+            return Math.min(current + maxDelta, target);
+        }
+        return Math.max(current - maxDelta, target);
     }
 
     private float clampEnemyX(EnemyActor enemy, float x) {
