@@ -104,6 +104,8 @@ final class TestRoomScene implements Scene {
     private static final String PLAYER_ATTACK_TEXTURE = "player_attack";
     private static final String PLAYER_HIT_TEXTURE = "player_hit";
     private static final String PLAYER_DEATH_TEXTURE = "player_death";
+    private static final float PLAYER_SPRITE_OFFSET_X = -46.0f;
+    private static final float PLAYER_SPRITE_OFFSET_Y = 0.0f;
     private static final String SLIME_TEXTURE_PREFIX = "slime_green_";
     private static final float EDITOR_BUTTON_X = 12.0f;
     private static final float EDITOR_BUTTON_TOP_Y = 12.0f;
@@ -1101,8 +1103,8 @@ final class TestRoomScene implements Scene {
                     clip.sourceYForFrame(frameIndex),
                     clip.frameWidth(),
                     clip.frameHeight(),
-                    player.x() - 51.0f,
-                    player.y() - 30.0f,
+                    player.x() + PLAYER_SPRITE_OFFSET_X,
+                    player.y() + PLAYER_SPRITE_OFFSET_Y,
                     clip.frameWidth(),
                     clip.frameHeight(),
                     !facingRight,
