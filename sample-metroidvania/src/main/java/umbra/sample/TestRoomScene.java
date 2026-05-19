@@ -51,6 +51,9 @@ import umbra.physics.player.PlayerController;
 import umbra.physics.player.PlayerControllerConfig;
 import umbra.physics.player.PlayerInput;
 import umbra.physics.player.PlayerState;
+import umbra.progression.AbilityGateBlock;
+import umbra.progression.AbilityState;
+import umbra.progression.AbilityTriggerResolver;
 import umbra.render.debug.DebugColor;
 import umbra.render.debug.DebugDrawList;
 import umbra.render.debug.DebugGeometryBuilder;
@@ -136,6 +139,7 @@ final class TestRoomScene implements Scene {
     private final DebugGeometryBuilder debugGeometryBuilder = new DebugGeometryBuilder();
     private final AnimationSetValidator animationSetValidator = new AnimationSetValidator();
     private final RoomTriggerResolver roomTriggerResolver = new RoomTriggerResolver();
+    private final AbilityTriggerResolver abilityTriggerResolver = new AbilityTriggerResolver();
     private final SaveGameCodec saveGameCodec = new SaveGameCodec();
     private final Camera camera;
     private final EngineConfig config;
@@ -186,7 +190,7 @@ final class TestRoomScene implements Scene {
     private String currentRoomId = START_ROOM_ID;
     private final CheckpointState checkpointState = new CheckpointState(START_ROOM_ID, DEFAULT_PLAYER_SPAWN_ID);
     private final Set<String> visitedRoomIds = new LinkedHashSet<>();
-    private final Set<String> unlockedAbilityIds = new LinkedHashSet<>();
+    private final AbilityState abilityState = new AbilityState();
     private float deathRespawnSeconds;
     private float roomTransitionLockoutSeconds;
     private float playerDashSeconds;
@@ -344,7 +348,7 @@ final class TestRoomScene implements Scene {
             SaveGame saveGame = saveGameCodec.decode(saveFile.readString(StandardCharsets.UTF_8.name()));
             checkpointState.activate(saveGame.checkpointRoomId(), saveGame.checkpointSpawnId());
             visitedRoomIds.addAll(saveGame.visitedRoomIds());
-            unlockedAbilityIds.addAll(saveGame.unlockedAbilityIds());
+            abilityState.unlockAll(saveGame.unlockedAbilityIds());
             currentRoomId = saveGame.checkpointRoomId();
         } catch (RuntimeException exception) {
             Gdx.app.error("Umbra2D", "Ignoring invalid sample save: " + SAMPLE_SAVE_PATH, exception);
@@ -360,7 +364,7 @@ final class TestRoomScene implements Scene {
                     checkpointState.roomId(),
                     checkpointState.spawnId(),
                     List.copyOf(visitedRoomIds),
-                    List.copyOf(unlockedAbilityIds)
+                    abilityState.unlockedAbilityIds()
             );
             saveFile.writeString(saveGameCodec.encode(saveGame), false, StandardCharsets.UTF_8.name());
         } catch (RuntimeException exception) {
@@ -431,14 +435,13 @@ final class TestRoomScene implements Scene {
             return;
         }
         Aabb playerBounds = player.bounds();
-        for (RoomDefinition.AbilityPickupDefinition pickup : room.abilityPickups()) {
-            if (unlockedAbilityIds.contains(pickup.abilityId())) {
-                continue;
-            }
-            if (playerBounds.overlaps(new Aabb(pickup.x(), pickup.y(), pickup.width(), pickup.height()))) {
-                unlockedAbilityIds.add(pickup.abilityId());
-                persistCheckpointSave();
-            }
+        Optional<String> abilityId = abilityTriggerResolver.findUnlockablePickup(
+                abilityState,
+                room.abilityPickups(),
+                playerBounds
+        );
+        if (abilityId.isPresent() && abilityState.unlock(abilityId.get())) {
+            persistCheckpointSave();
         }
     }
 
@@ -447,28 +450,21 @@ final class TestRoomScene implements Scene {
             return;
         }
         Aabb playerBounds = player.bounds();
-        for (RoomDefinition.AbilityGateDefinition gate : room.abilityGates()) {
-            if (unlockedAbilityIds.contains(gate.requiredAbilityId())) {
-                continue;
-            }
-            Aabb gateBounds = new Aabb(gate.x(), gate.y(), gate.width(), gate.height());
-            if (!playerBounds.overlaps(gateBounds)) {
-                continue;
-            }
-            float playerCenterX = playerBounds.x() + playerBounds.width() * 0.5f;
-            float gateCenterX = gateBounds.x() + gateBounds.width() * 0.5f;
-            float resolvedX = playerCenterX < gateCenterX
-                    ? gateBounds.x() - playerBounds.width()
-                    : gateBounds.right();
+        Optional<AbilityGateBlock> block = abilityTriggerResolver.findBlockingGate(
+                abilityState,
+                room.abilityGates(),
+                playerBounds
+        );
+        if (block.isPresent()) {
+            float resolvedX = abilityTriggerResolver.resolveHorizontalBlockX(playerBounds, block.get().gateBounds());
             player.setPosition(resolvedX, player.y());
             player.setVelocityX(0.0f);
             playerDashSeconds = 0.0f;
-            playerBounds = player.bounds();
         }
     }
 
     private void startPlayerDash(PlayerInput input) {
-        if (!unlockedAbilityIds.contains(ABILITY_DASH)
+        if (!abilityState.has(ABILITY_DASH)
                 || playerHealth.defeated()
                 || playerHitStunTimer.stunned()
                 || !attackTimeline.acceptingNewAttack()
@@ -1202,7 +1198,7 @@ final class TestRoomScene implements Scene {
             }
         }
         for (RoomDefinition.AbilityPickupDefinition pickup : room.abilityPickups()) {
-            if (!unlockedAbilityIds.contains(pickup.abilityId())) {
+            if (!abilityState.has(pickup.abilityId())) {
                 debugGeometryBuilder.addAabb(drawList, new Aabb(
                         pickup.x(),
                         pickup.y(),
@@ -1212,7 +1208,7 @@ final class TestRoomScene implements Scene {
             }
         }
         for (RoomDefinition.AbilityGateDefinition gate : room.abilityGates()) {
-            DebugColor color = unlockedAbilityIds.contains(gate.requiredAbilityId())
+            DebugColor color = abilityState.has(gate.requiredAbilityId())
                     ? ABILITY_GATE_UNLOCKED_COLOR
                     : ABILITY_GATE_LOCKED_COLOR;
             debugGeometryBuilder.addAabb(drawList, new Aabb(
@@ -1695,7 +1691,7 @@ final class TestRoomScene implements Scene {
                 + " | hitPause=" + hitPauseTimer.paused()
                 + " | playerStun=" + playerHitStunTimer.stunned()
                 + " | playerHP=" + playerHealth.currentHealth()
-                + " | abilities=" + unlockedAbilityIds
+                + " | abilities=" + abilityState.unlockedAbilityIds()
                 + " | dash=" + playerDashSeconds
                 + " | enemiesAlive=" + aliveEnemyCount()
                 + " | selectedAI=" + selectedEnemyState()

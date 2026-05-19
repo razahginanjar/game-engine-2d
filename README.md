@@ -69,6 +69,7 @@ Do not commit local absolute paths, credentials, generated build folders, IDE st
 - `engine-assets`: asset path validation.
 - `engine-room`: JSON room model loading and v1 contract validation.
 - `engine-combat`: hitbox/hurtbox definitions and overlap resolution, team filtering, attack timing, damage events, health, invulnerability frames, hit pause, and hit stun.
+- `engine-progression`: unlocked ability state and ability pickup/gate trigger resolution.
 - `sample-metroidvania`: LibGDX graybox room proving movement and collision.
 - `desktop`: LWJGL3 launcher.
 
@@ -99,7 +100,7 @@ Implemented first because it blocks every later gameplay feature:
 - Door and checkpoint triggers are visible in the debug room layer.
 - The sample can transition between two test rooms and respawn the player at the latest checkpoint after death or `R`.
 - Checkpoint and visited-room save data is serialized by `engine-save` and loaded on sample startup from `.umbra2d/sample-save.json`.
-- Ability unlock state is serialized by `engine-save`; the sample dash pickup persists across restart and gates read that state.
+- Ability unlock state is handled by `engine-progression` and serialized by `engine-save`; the sample dash pickup persists across restart and gates read that state.
 - Graybox combat sample with player slash, multiple moving enemies, anchored hitbox movement, contact damage, knockback, HP state, hit pause, hit stun, active hitbox debug, enemy hurtboxes, and reset.
 
 Sprite assets are loaded from `../assets` by default. Override with:
