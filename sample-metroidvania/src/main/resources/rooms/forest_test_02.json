@@ -30,7 +30,7 @@
     { "id": "skeleton_b", "type": "enemy_spawn", "x": 960, "y": 64 }
   ],
   "doors": [
-    { "id": "left_exit", "x": 8, "y": 32, "w": 24, "h": 96, "target_room": "forest_test_01", "target_spawn": "entry_right" }
+    { "id": "left_exit", "x": 32, "y": 32, "w": 24, "h": 96, "target_room": "forest_test_01", "target_spawn": "entry_right" }
   ],
   "camera_zones": [
     { "id": "main", "x": 0, "y": 0, "w": 1280, "h": 704 }
