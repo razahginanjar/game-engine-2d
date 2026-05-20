@@ -1,0 +1,36 @@
+{
+  "room_id": "forest_test_02",
+  "ambient_color": "#A4B87FFF",
+  "layers": [
+    {
+      "id": "far_clouds",
+      "type": "background",
+      "asset_path": "background/free-sky-with-clouds-background-pixel-art-set/Clouds/Clouds 3/1.png",
+      "order": -300,
+      "parallax_x": 0.12,
+      "parallax_y": 0.08,
+      "repeat_mode": "repeat_x",
+      "offset_x": 0,
+      "offset_y": 72,
+      "scale_x": 1.0,
+      "scale_y": 1.0,
+      "opacity": 0.60,
+      "tint": "#E9F5D8FF"
+    },
+    {
+      "id": "near_clouds",
+      "type": "background",
+      "asset_path": "background/free-sky-with-clouds-background-pixel-art-set/Clouds/Clouds 4/1.png",
+      "order": -250,
+      "parallax_x": 0.32,
+      "parallax_y": 0.14,
+      "repeat_mode": "repeat_x",
+      "offset_x": 0,
+      "offset_y": 36,
+      "scale_x": 1.0,
+      "scale_y": 1.0,
+      "opacity": 0.48,
+      "tint": "#FFFFFFFF"
+    }
+  ]
+}

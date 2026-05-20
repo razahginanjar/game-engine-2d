@@ -31,6 +31,7 @@ public final class ProjectValidator {
 
     private final GameManifestLoader manifestLoader = new GameManifestLoader();
     private final CreatureDefinitionLoader creatureLoader = new CreatureDefinitionLoader();
+    private final RoomVisualDefinitionLoader roomVisualLoader = new RoomVisualDefinitionLoader();
 
     public ProjectValidationReport validate(Path projectRoot, String manifestPath) {
         Path absoluteRoot = projectRoot.toAbsolutePath().normalize();
@@ -47,6 +48,7 @@ public final class ProjectValidator {
         validateSavePolicy(absoluteRoot, manifest, issues);
         validateEnabledModules(manifest, issues);
         validateCreatureDefinitions(absoluteRoot, manifest, issues);
+        validateRoomVisualDefinitions(absoluteRoot, manifest, issues);
         return new ProjectValidationReport(Optional.of(manifest), issues);
     }
 
@@ -183,6 +185,44 @@ public final class ProjectValidator {
             return new AnimationMetadataLoader().load(reader);
         } catch (IOException exception) {
             throw new CreatureDefinitionValidationException("failed to read animation metadata: " + relativePath, exception);
+        }
+    }
+
+    private void validateRoomVisualDefinitions(Path projectRoot, GameManifest manifest, List<ProjectValidationIssue> issues) {
+        Path approvedAssetRoot = projectRoot.resolve(manifest.assetRoot()).normalize();
+        Set<String> roomIds = new HashSet<>();
+        for (String definitionPath : manifest.roomVisualDefinitions()) {
+            RoomVisualDefinition visual;
+            try {
+                visual = roomVisualLoader.loadProjectRoomVisual(projectRoot, definitionPath);
+            } catch (RuntimeException exception) {
+                issues.add(error("room_visual.invalid",
+                        "invalid room visual definition " + definitionPath + ": " + exception.getMessage()));
+                continue;
+            }
+            if (!roomIds.add(visual.roomId())) {
+                issues.add(error("room_visual.duplicate_room", "duplicate room visual definition: " + visual.roomId()));
+            }
+            validateRoomVisualAssets(approvedAssetRoot, visual, issues);
+        }
+    }
+
+    private void validateRoomVisualAssets(
+            Path approvedAssetRoot,
+            RoomVisualDefinition visual,
+            List<ProjectValidationIssue> issues
+    ) {
+        for (RoomVisualLayerDefinition layer : visual.layers()) {
+            Path assetPath = approvedAssetRoot.resolve(layer.assetPath()).normalize();
+            if (!assetPath.startsWith(approvedAssetRoot)) {
+                issues.add(error("room_visual.asset.escapes_assets",
+                        "room visual layer asset escapes approved asset root: " + visual.roomId() + "." + layer.id()));
+                continue;
+            }
+            if (!Files.exists(assetPath)) {
+                issues.add(warning("room_visual.asset.missing",
+                        "room visual layer asset does not exist: " + visual.roomId() + "." + layer.id()));
+            }
         }
     }
 

@@ -1,0 +1,36 @@
+{
+  "room_id": "forest_boss_01",
+  "ambient_color": "#6F7E8FFF",
+  "layers": [
+    {
+      "id": "storm_clouds",
+      "type": "background",
+      "asset_path": "background/free-sky-with-clouds-background-pixel-art-set/Clouds/Clouds 6/1.png",
+      "order": -300,
+      "parallax_x": 0.10,
+      "parallax_y": 0.06,
+      "repeat_mode": "repeat_x",
+      "offset_x": 0,
+      "offset_y": 76,
+      "scale_x": 1.0,
+      "scale_y": 1.0,
+      "opacity": 0.72,
+      "tint": "#C8D0E0FF"
+    },
+    {
+      "id": "arena_haze",
+      "type": "foreground",
+      "asset_path": "background/free-sky-with-clouds-background-pixel-art-set/Clouds/Clouds 7/1.png",
+      "order": 200,
+      "parallax_x": 0.65,
+      "parallax_y": 0.24,
+      "repeat_mode": "repeat_x",
+      "offset_x": 0,
+      "offset_y": 24,
+      "scale_x": 1.0,
+      "scale_y": 1.0,
+      "opacity": 0.22,
+      "tint": "#AAB2C8FF"
+    }
+  ]
+}

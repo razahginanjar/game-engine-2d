@@ -22,5 +22,10 @@
     "sample-metroidvania/src/main/resources/metadata/creatures/flying_eye.creature.json",
     "sample-metroidvania/src/main/resources/metadata/creatures/skeleton.creature.json",
     "sample-metroidvania/src/main/resources/metadata/creatures/mushroom.creature.json"
+  ],
+  "room_visual_definitions": [
+    "sample-metroidvania/src/main/resources/metadata/room_visuals/forest_test_01.visual.json",
+    "sample-metroidvania/src/main/resources/metadata/room_visuals/forest_test_02.visual.json",
+    "sample-metroidvania/src/main/resources/metadata/room_visuals/forest_boss_01.visual.json"
   ]
 }

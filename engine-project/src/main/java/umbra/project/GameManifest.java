@@ -9,7 +9,8 @@ public record GameManifest(
         String assetRoot,
         SavePolicy savePolicy,
         List<String> enabledModules,
-        List<String> creatureDefinitions
+        List<String> creatureDefinitions,
+        List<String> roomVisualDefinitions
 ) {
     public GameManifest {
         requireText("title", title);
@@ -31,10 +32,11 @@ public record GameManifest(
         }
         creatureDefinitions = creatureDefinitions == null ? List.of() : List.copyOf(creatureDefinitions);
         for (String definitionPath : creatureDefinitions) {
-            requireText("creature definition path", definitionPath);
-            if (definitionPath.startsWith("/") || definitionPath.matches("^[A-Za-z]:.*")) {
-                throw new GameManifestValidationException("creature definition paths must be project-relative");
-            }
+            requireProjectRelativePath("creature definition path", definitionPath);
+        }
+        roomVisualDefinitions = roomVisualDefinitions == null ? List.of() : List.copyOf(roomVisualDefinitions);
+        for (String definitionPath : roomVisualDefinitions) {
+            requireProjectRelativePath("room visual definition path", definitionPath);
         }
     }
 
@@ -48,6 +50,13 @@ public record GameManifest(
         requireText(field, value);
         if (!value.matches("[a-z][a-z0-9_]*")) {
             throw new GameManifestValidationException(field + " must be snake_case: " + value);
+        }
+    }
+
+    private static void requireProjectRelativePath(String field, String value) {
+        requireText(field, value);
+        if (value.startsWith("/") || value.matches("^[A-Za-z]:.*")) {
+            throw new GameManifestValidationException(field + " must be project-relative");
         }
     }
 }

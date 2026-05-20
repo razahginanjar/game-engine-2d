@@ -21,8 +21,12 @@ final class ProjectValidatorTest {
         Files.createDirectories(projectRoot.resolve("assets"));
         Files.createDirectories(projectRoot.resolve("metadata/creatures"));
         Files.createDirectories(projectRoot.resolve("metadata/animations"));
+        Files.createDirectories(projectRoot.resolve("metadata/room_visuals"));
+        Files.createDirectories(projectRoot.resolve("assets/background/sky"));
+        Files.writeString(projectRoot.resolve("assets/background/sky/1.png"), "fake-png");
         writeAnimation("metadata/animations/goblin.anim.json", true);
         writeCreature("metadata/creatures/goblin.creature.json", "metadata/animations/goblin.anim.json");
+        writeRoomVisual("metadata/room_visuals/forest_test_01.visual.json", "background/sky/1.png");
         writeManifest("""
                 {
                   "title": "Umbra2D Sample Metroidvania",
@@ -34,7 +38,8 @@ final class ProjectValidatorTest {
                     "path": ".umbra2d/sample-save.json"
                   },
                   "enabled_modules": ["room", "animation", "ai", "combat", "boss", "progression", "save"],
-                  "creature_definitions": ["metadata/creatures/goblin.creature.json"]
+                  "creature_definitions": ["metadata/creatures/goblin.creature.json"],
+                  "room_visual_definitions": ["metadata/room_visuals/forest_test_01.visual.json"]
                 }
                 """);
 
@@ -77,6 +82,31 @@ final class ProjectValidatorTest {
         ProjectValidationReport report = validator.validate(projectRoot, "game.manifest.json");
 
         assertEquals("creature.attack.missing_active_event", report.errors().get(0).code());
+    }
+
+    @Test
+    void warnsWhenRoomVisualAssetIsMissing() throws IOException {
+        Files.createDirectories(projectRoot.resolve("assets"));
+        Files.createDirectories(projectRoot.resolve("metadata/room_visuals"));
+        writeRoomVisual("metadata/room_visuals/forest_test_01.visual.json", "background/missing/1.png");
+        writeManifestWithRoomVisual("metadata/room_visuals/forest_test_01.visual.json");
+
+        ProjectValidationReport report = validator.validate(projectRoot, "game.manifest.json");
+
+        assertTrue(report.valid());
+        assertEquals("room_visual.asset.missing", report.warnings().get(0).code());
+    }
+
+    @Test
+    void reportsRoomVisualAssetEscapingAssetRoot() throws IOException {
+        Files.createDirectories(projectRoot.resolve("assets"));
+        Files.createDirectories(projectRoot.resolve("metadata/room_visuals"));
+        writeRoomVisual("metadata/room_visuals/forest_test_01.visual.json", "../outside.png");
+        writeManifestWithRoomVisual("metadata/room_visuals/forest_test_01.visual.json");
+
+        ProjectValidationReport report = validator.validate(projectRoot, "game.manifest.json");
+
+        assertEquals("room_visual.asset.escapes_assets", report.errors().get(0).code());
     }
 
     @Test
@@ -152,6 +182,19 @@ final class ProjectValidatorTest {
                   "creature_definitions": ["%s"]
                 }
                 """.formatted(creatureDefinitionPath));
+    }
+
+    private void writeManifestWithRoomVisual(String roomVisualDefinitionPath) throws IOException {
+        writeManifest("""
+                {
+                  "title": "Umbra2D Sample Metroidvania",
+                  "start_room_id": "forest_test_01",
+                  "default_spawn_id": "entry_left",
+                  "asset_root": "assets",
+                  "enabled_modules": ["room", "render"],
+                  "room_visual_definitions": ["%s"]
+                }
+                """.formatted(roomVisualDefinitionPath));
     }
 
     private void writeCreature(String path, String animationPath) throws IOException {
@@ -266,5 +309,27 @@ final class ProjectValidatorTest {
                   ]
                 }
                 """.formatted(attackEvents));
+    }
+
+    private void writeRoomVisual(String path, String assetPath) throws IOException {
+        Files.writeString(projectRoot.resolve(path), """
+                {
+                  "room_id": "forest_test_01",
+                  "ambient_color": "#89A7C6FF",
+                  "layers": [
+                    {
+                      "id": "sky",
+                      "type": "background",
+                      "asset_path": "%s",
+                      "order": -100,
+                      "parallax_x": 0.20,
+                      "parallax_y": 0.10,
+                      "repeat_mode": "repeat_x",
+                      "opacity": 0.70,
+                      "tint": "#FFFFFFFF"
+                    }
+                  ]
+                }
+                """.formatted(assetPath));
     }
 }

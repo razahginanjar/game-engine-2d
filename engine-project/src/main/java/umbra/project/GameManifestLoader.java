@@ -35,7 +35,8 @@ public final class GameManifestLoader {
                 requiredString(root, "asset_root"),
                 readSavePolicy(root),
                 readEnabledModules(root),
-                readOptionalStringArray(root, "creature_definitions")
+                readOptionalStringArray(root, "creature_definitions"),
+                readOptionalStringArray(root, "room_visual_definitions")
         );
     }
 

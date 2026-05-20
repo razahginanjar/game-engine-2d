@@ -129,6 +129,7 @@ Implemented first because it blocks every later gameplay feature:
 - Ability unlock state is handled by `engine-progression` and serialized by `engine-save`; the sample dash and double-jump pickups persist across restart and gates read that state.
 - The sample reads `sample-metroidvania/src/main/resources/game.manifest.json` for project title, startup room, default spawn, asset root, save policy, and enabled engine modules.
 - Creature authoring data exists for slime, goblin, flying eye, skeleton, and mushroom under `sample-metroidvania/src/main/resources/metadata/creatures`; validation checks their state mappings against animation metadata before launch.
+- Room visual authoring data exists under `sample-metroidvania/src/main/resources/metadata/room_visuals`; validation checks layer settings, parallax/repeat/tint values, and approved background asset paths before launch.
 - Graybox combat sample with player slash, multiple moving enemies, anchored hitbox movement, contact damage, knockback, HP state, hit pause, hit stun, active hitbox debug, enemy hurtboxes, and reset.
 
 Sprite assets are loaded from `../assets` by default. Override with:

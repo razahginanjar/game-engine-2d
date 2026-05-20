@@ -41,6 +41,9 @@ final class GameManifestLoaderTest {
                   ],
                   "creature_definitions": [
                     "metadata/creatures/goblin.creature.json"
+                  ],
+                  "room_visual_definitions": [
+                    "metadata/room_visuals/forest_test_01.visual.json"
                   ]
                 }
                 """));
@@ -53,6 +56,7 @@ final class GameManifestLoaderTest {
         assertEquals(List.of("room", "animation", "ai", "combat", "boss", "progression", "save"),
                 manifest.enabledModules());
         assertEquals(List.of("metadata/creatures/goblin.creature.json"), manifest.creatureDefinitions());
+        assertEquals(List.of("metadata/room_visuals/forest_test_01.visual.json"), manifest.roomVisualDefinitions());
     }
 
     @Test
