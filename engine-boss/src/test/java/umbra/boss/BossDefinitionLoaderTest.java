@@ -34,7 +34,12 @@ final class BossDefinitionLoaderTest {
                     "knockback_y": 70,
                     "hit_pause_seconds": 0.065,
                     "hit_stun_seconds": 0.25,
-                    "damage_type": "boss_spear"
+                    "damage_type": "boss_spear",
+                    "hitbox_windows": [{
+                      "start_frame": 2,
+                      "end_frame": 4,
+                      "shapes": [{ "type": "facing_body" }]
+                    }]
                   }]
                 }
                 """));
@@ -70,7 +75,12 @@ final class BossDefinitionLoaderTest {
                     "knockback_x": 220,
                     "knockback_y": 70,
                     "hit_pause_seconds": 0.065,
-                    "hit_stun_seconds": 0.25
+                    "hit_stun_seconds": 0.25,
+                    "hitbox_windows": [{
+                      "start_frame": 2,
+                      "end_frame": 4,
+                      "shapes": [{ "type": "facing_body" }]
+                    }]
                   }]
                 }
                 """)));
@@ -101,7 +111,12 @@ final class BossDefinitionLoaderTest {
                       "knockback_x": 220,
                       "knockback_y": 70,
                       "hit_pause_seconds": 0.065,
-                      "hit_stun_seconds": 0.25
+                      "hit_stun_seconds": 0.25,
+                      "hitbox_windows": [{
+                        "start_frame": 2,
+                        "end_frame": 4,
+                        "shapes": [{ "type": "facing_body" }]
+                      }]
                     },
                     {
                       "id": "impaler_stab",
@@ -117,9 +132,49 @@ final class BossDefinitionLoaderTest {
                       "knockback_x": 220,
                       "knockback_y": 70,
                       "hit_pause_seconds": 0.065,
-                      "hit_stun_seconds": 0.25
+                      "hit_stun_seconds": 0.25,
+                      "hitbox_windows": [{
+                        "start_frame": 3,
+                        "end_frame": 4,
+                        "shapes": [{ "type": "facing_body" }]
+                      }]
                     }
                   ]
+                }
+                """)));
+    }
+
+    @Test
+    void rejectsHitboxWindowOutsideAttackFrames() {
+        BossDefinitionLoader loader = new BossDefinitionLoader();
+
+        assertThrows(BossDefinitionValidationException.class, () -> loader.load(new StringReader("""
+                {
+                  "id": "impaler",
+                  "display_name": "Impaler",
+                  "max_health": 18,
+                  "phases": [{ "id": "phase_1", "starts_at_health_ratio": 1.0 }],
+                  "attacks": [{
+                    "id": "impaler_stab",
+                    "phase_id": "phase_1",
+                    "clip_id": "attack2",
+                    "hitbox_profile": "impaler_attack2",
+                    "min_range": 0,
+                    "max_range": 72,
+                    "cooldown_seconds": 0.82,
+                    "frame_count": 8,
+                    "fps": 10,
+                    "damage": 1,
+                    "knockback_x": 220,
+                    "knockback_y": 70,
+                    "hit_pause_seconds": 0.065,
+                    "hit_stun_seconds": 0.25,
+                    "hitbox_windows": [{
+                      "start_frame": 9,
+                      "end_frame": 10,
+                      "shapes": [{ "type": "facing_body" }]
+                    }]
+                  }]
                 }
                 """)));
     }

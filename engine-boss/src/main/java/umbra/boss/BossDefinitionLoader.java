@@ -70,7 +70,36 @@ public final class BossDefinitionLoader {
                     requiredFloat(attack, "knockback_y"),
                     requiredFloat(attack, "hit_pause_seconds"),
                     requiredFloat(attack, "hit_stun_seconds"),
-                    optionalString(attack, "damage_type", "physical")
+                    optionalString(attack, "damage_type", "physical"),
+                    readHitboxWindows(attack)
+            ));
+        }
+        return result;
+    }
+
+    private List<BossHitboxWindow> readHitboxWindows(JsonObject attack) {
+        JsonArray windows = requiredArray(attack, "hitbox_windows");
+        List<BossHitboxWindow> result = new ArrayList<>();
+        for (JsonElement element : windows) {
+            JsonObject window = element.getAsJsonObject();
+            result.add(new BossHitboxWindow(
+                    requiredPositiveInt(window, "start_frame"),
+                    requiredPositiveInt(window, "end_frame"),
+                    readHitboxShapes(window)
+            ));
+        }
+        return result;
+    }
+
+    private List<BossHitboxShape> readHitboxShapes(JsonObject window) {
+        JsonArray shapes = requiredArray(window, "shapes");
+        List<BossHitboxShape> result = new ArrayList<>();
+        for (JsonElement element : shapes) {
+            JsonObject shape = element.getAsJsonObject();
+            result.add(new BossHitboxShape(
+                    requiredString(shape, "type"),
+                    optionalString(shape, "direction", "facing"),
+                    optionalInt(shape, "slot", 0)
             ));
         }
         return result;
@@ -99,6 +128,13 @@ public final class BossDefinitionLoader {
             throw new BossDefinitionValidationException(key + " must be positive");
         }
         return value;
+    }
+
+    private int optionalInt(JsonObject object, String key, int defaultValue) {
+        if (!object.has(key)) {
+            return defaultValue;
+        }
+        return object.get(key).getAsInt();
     }
 
     private float requiredFloat(JsonObject object, String key) {

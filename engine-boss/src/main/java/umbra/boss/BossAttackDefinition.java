@@ -1,5 +1,7 @@
 package umbra.boss;
 
+import java.util.List;
+
 public record BossAttackDefinition(
         String id,
         String phaseId,
@@ -15,7 +17,8 @@ public record BossAttackDefinition(
         float knockbackY,
         float hitPauseSeconds,
         float hitStunSeconds,
-        String damageType
+        String damageType,
+        List<BossHitboxWindow> hitboxWindows
 ) {
     public BossAttackDefinition {
         requireSnakeCase("attack id", id);
@@ -42,6 +45,15 @@ public record BossAttackDefinition(
         }
         if (damageType == null || damageType.isBlank()) {
             damageType = "physical";
+        }
+        hitboxWindows = hitboxWindows == null ? List.of() : List.copyOf(hitboxWindows);
+        if (hitboxWindows.isEmpty()) {
+            throw new BossDefinitionValidationException("attack must define hitbox_windows: " + id);
+        }
+        for (BossHitboxWindow window : hitboxWindows) {
+            if (window.endFrame() > frameCount) {
+                throw new BossDefinitionValidationException("hitbox window exceeds frame_count: " + id);
+            }
         }
     }
 

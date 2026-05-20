@@ -22,7 +22,25 @@
       "knockback_y": 70,
       "hit_pause_seconds": 0.065,
       "hit_stun_seconds": 0.25,
-      "damage_type": "boss_spear"
+      "damage_type": "boss_spear",
+      "hitbox_windows": [
+        {
+          "start_frame": 2,
+          "end_frame": 4,
+          "shapes": [
+            { "type": "facing_body" },
+            { "type": "top" }
+          ]
+        },
+        {
+          "start_frame": 5,
+          "end_frame": 7,
+          "shapes": [
+            { "type": "opposite_body" },
+            { "type": "facing_small" }
+          ]
+        }
+      ]
     },
     {
       "id": "impaler_ground_sweep",
@@ -39,7 +57,28 @@
       "knockback_y": 70,
       "hit_pause_seconds": 0.065,
       "hit_stun_seconds": 0.25,
-      "damage_type": "boss_spear"
+      "damage_type": "boss_spear",
+      "hitbox_windows": [
+        {
+          "start_frame": 3,
+          "end_frame": 4,
+          "shapes": [{ "type": "facing_body" }]
+        },
+        {
+          "start_frame": 6,
+          "end_frame": 14,
+          "shapes": [{ "type": "facing_tall_sweep" }]
+        },
+        {
+          "start_frame": 19,
+          "end_frame": 22,
+          "shapes": [
+            { "type": "facing_foot" },
+            { "type": "detached_body", "direction": "facing" },
+            { "type": "detached_body", "direction": "opposite" }
+          ]
+        }
+      ]
     },
     {
       "id": "impaler_delayed_cross",
@@ -56,7 +95,22 @@
       "knockback_y": 70,
       "hit_pause_seconds": 0.065,
       "hit_stun_seconds": 0.25,
-      "damage_type": "boss_spear"
+      "damage_type": "boss_spear",
+      "hitbox_windows": [
+        {
+          "start_frame": 6,
+          "end_frame": 9,
+          "shapes": [
+            { "type": "opposite_body" },
+            { "type": "facing_small" }
+          ]
+        },
+        {
+          "start_frame": 13,
+          "end_frame": 19,
+          "shapes": [{ "type": "facing_mid_small" }]
+        }
+      ]
     },
     {
       "id": "impaler_long_lunge",
@@ -73,7 +127,19 @@
       "knockback_y": 70,
       "hit_pause_seconds": 0.065,
       "hit_stun_seconds": 0.25,
-      "damage_type": "boss_spear"
+      "damage_type": "boss_spear",
+      "hitbox_windows": [
+        {
+          "start_frame": 5,
+          "end_frame": 11,
+          "shapes": [{ "type": "facing_wide_middle" }]
+        },
+        {
+          "start_frame": 18,
+          "end_frame": 26,
+          "shapes": [{ "type": "facing_wide_middle" }]
+        }
+      ]
     },
     {
       "id": "impaler_shadow_chain",
@@ -90,7 +156,22 @@
       "knockback_y": 70,
       "hit_pause_seconds": 0.065,
       "hit_stun_seconds": 0.25,
-      "damage_type": "boss_spear"
+      "damage_type": "boss_spear",
+      "hitbox_windows": [
+        {
+          "start_frame": 9,
+          "end_frame": 14,
+          "shapes": [{ "type": "facing_low_sweep" }]
+        },
+        {
+          "start_frame": 21,
+          "end_frame": 25,
+          "shapes": [
+            { "type": "high_side_body", "slot": 1 },
+            { "type": "high_side_body", "slot": 2 }
+          ]
+        }
+      ]
     },
     {
       "id": "impaler_finisher",
@@ -107,7 +188,14 @@
       "knockback_y": 70,
       "hit_pause_seconds": 0.08,
       "hit_stun_seconds": 0.3,
-      "damage_type": "boss_spear"
+      "damage_type": "boss_spear",
+      "hitbox_windows": [
+        {
+          "start_frame": 7,
+          "end_frame": 11,
+          "shapes": [{ "type": "center_low_small" }]
+        }
+      ]
     }
   ]
 }

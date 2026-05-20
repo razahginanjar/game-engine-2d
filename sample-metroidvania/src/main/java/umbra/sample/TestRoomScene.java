@@ -32,6 +32,8 @@ import umbra.boss.BossAttackSelector;
 import umbra.boss.BossDefinition;
 import umbra.boss.BossDefinitionLoader;
 import umbra.boss.BossFightState;
+import umbra.boss.BossHitboxShape;
+import umbra.boss.BossHitboxWindow;
 import umbra.combat.AttackDefinition;
 import umbra.combat.AttackPhase;
 import umbra.combat.AttackTimelineDefinition;
@@ -137,13 +139,19 @@ final class TestRoomScene implements Scene {
     private static final float PLAYER_SPRITE_OFFSET_Y = 0.0f;
     private static final String SLIME_TEXTURE_PREFIX = "slime_green_";
     private static final String IMPALER_TEXTURE_PREFIX = "impaler_";
-    private static final Set<String> IMPALER_HITBOX_PROFILES = Set.of(
-            "impaler_attack1",
-            "impaler_attack2",
-            "impaler_attack3",
-            "impaler_attack4",
-            "impaler_attack5",
-            "impaler_attack6"
+    private static final Set<String> BOSS_HITBOX_SHAPES = Set.of(
+            "center_low_small",
+            "detached_body",
+            "facing_body",
+            "facing_foot",
+            "facing_low_sweep",
+            "facing_mid_small",
+            "facing_small",
+            "facing_tall_sweep",
+            "facing_wide_middle",
+            "high_side_body",
+            "opposite_body",
+            "top"
     );
     private static final int IMPALER_TEXTURE_WIDTH = 360;
     private static final int IMPALER_TEXTURE_HEIGHT = 149;
@@ -269,7 +277,7 @@ final class TestRoomScene implements Scene {
         return new BossAttackMove(
                 definition.pattern(),
                 definition.clipId(),
-                definition.hitboxProfile(),
+                definition.hitboxWindows(),
                 timeline
         );
     }
@@ -1198,8 +1206,12 @@ final class TestRoomScene implements Scene {
             if (!animationSet.hasClip(attack.clipId())) {
                 throw new IllegalStateException("boss attack references missing clip: " + attack.id());
             }
-            if (!IMPALER_HITBOX_PROFILES.contains(attack.hitboxProfile())) {
-                throw new IllegalStateException("boss attack references unknown hitbox profile: " + attack.id());
+            for (BossHitboxWindow window : attack.hitboxWindows()) {
+                for (BossHitboxShape shape : window.shapes()) {
+                    if (!BOSS_HITBOX_SHAPES.contains(shape.type())) {
+                        throw new IllegalStateException("boss attack references unknown hitbox shape: " + attack.id());
+                    }
+                }
             }
         }
     }
@@ -2089,7 +2101,7 @@ final class TestRoomScene implements Scene {
     private record BossAttackMove(
             BossAttackPattern pattern,
             String clipId,
-            String hitboxProfile,
+            List<BossHitboxWindow> hitboxWindows,
             AttackTimelineDefinition timeline
     ) {
         private BossAttackMove {
@@ -2097,9 +2109,7 @@ final class TestRoomScene implements Scene {
             if (clipId == null || clipId.isBlank()) {
                 throw new IllegalArgumentException("clipId must not be blank");
             }
-            if (hitboxProfile == null || hitboxProfile.isBlank()) {
-                throw new IllegalArgumentException("hitboxProfile must not be blank");
-            }
+            hitboxWindows = hitboxWindows == null ? List.of() : List.copyOf(hitboxWindows);
             Objects.requireNonNull(timeline, "timeline must not be null");
         }
     }
@@ -2224,79 +2234,38 @@ final class TestRoomScene implements Scene {
                 return List.of();
             }
             int frame = frameIndex + 1;
-            return switch (attackMove.hitboxProfile()) {
-                case "impaler_attack1" -> attack1Bounds(frame);
-                case "impaler_attack2" -> attack2Bounds(frame);
-                case "impaler_attack3" -> attack3Bounds(frame);
-                case "impaler_attack4" -> attack4Bounds(frame);
-                case "impaler_attack5" -> attack5Bounds(frame);
-                case "impaler_attack6" -> attack6Bounds(frame);
-                default -> List.of();
+            List<Aabb> result = new ArrayList<>();
+            for (BossHitboxWindow window : attackMove.hitboxWindows()) {
+                if (!window.containsFrame(frame)) {
+                    continue;
+                }
+                for (BossHitboxShape shape : window.shapes()) {
+                    result.add(shapeBounds(shape));
+                }
+            }
+            return result;
+        }
+
+        private Aabb shapeBounds(BossHitboxShape shape) {
+            return switch (shape.type()) {
+                case "center_low_small" -> centerLowSmallBox();
+                case "detached_body" -> detachedBodyBox(directionFromShape(shape));
+                case "facing_body" -> facingBodyBox();
+                case "facing_foot" -> facingFootBox();
+                case "facing_low_sweep" -> facingLowSweepBox();
+                case "facing_mid_small" -> facingMidSmallBox();
+                case "facing_small" -> facingSmallBox();
+                case "facing_tall_sweep" -> facingTallSweepBox();
+                case "facing_wide_middle" -> facingWideMiddleBox();
+                case "high_side_body" -> highSideBodyBox(shape.slot());
+                case "opposite_body" -> oppositeBodyBox();
+                case "top" -> topBox();
+                default -> body.bounds();
             };
         }
 
-        private List<Aabb> attack1Bounds(int frame) {
-            if (frame >= 3 && frame <= 4) {
-                return List.of(facingBodyBox());
-            }
-            if (frame >= 6 && frame <= 14) {
-                return List.of(facingTallSweepBox());
-            }
-            if (frame >= 19 && frame <= 22) {
-                return List.of(facingFootBox(), detachedBodyBox(facingDirection), detachedBodyBox(-facingDirection));
-            }
-            return List.of();
-        }
-
-        private List<Aabb> attack2Bounds(int frame) {
-            if (frame >= 2 && frame <= 4) {
-                return List.of(facingBodyBox(), topBox());
-            }
-            if (frame >= 5 && frame <= 7) {
-                return List.of(oppositeBodyBox(), facingSmallBox());
-            }
-            return List.of();
-        }
-
-        private List<Aabb> attack3Bounds(int frame) {
-            if (frame >= 6 && frame <= 9) {
-                return List.of(oppositeBodyBox(), facingSmallBox());
-            }
-            if (frame >= 13 && frame <= 19) {
-                return List.of(facingMidSmallBox());
-            }
-            return List.of();
-        }
-
-        private List<Aabb> attack4Bounds(int frame) {
-            if ((frame >= 5 && frame <= 11) || frame >= 18) {
-                return List.of(facingWideMiddleBox());
-            }
-            return List.of();
-        }
-
-        private List<Aabb> attack5Bounds(int frame) {
-            if (frame >= 9 && frame <= 14) {
-                return List.of(facingLowSweepBox());
-            }
-            if (frame >= 21 && frame <= 25) {
-                return List.of(highSideBodyBox(1), highSideBodyBox(2));
-            }
-            return List.of();
-        }
-
-        private List<Aabb> attack6Bounds(int frame) {
-            if (frame >= 7 && frame <= 11) {
-                float width = body.width() * 0.25f;
-                float height = body.height() * 0.25f;
-                return List.of(new Aabb(
-                        body.x() + body.width() * 0.5f - width * 0.5f,
-                        body.y(),
-                        width,
-                        height
-                ));
-            }
-            return List.of();
+        private int directionFromShape(BossHitboxShape shape) {
+            return shape.direction().equals("opposite") ? -facingDirection : facingDirection;
         }
 
         private Aabb facingBodyBox() {
@@ -2317,6 +2286,17 @@ final class TestRoomScene implements Scene {
             return new Aabb(
                     body.x() + body.width() * 0.5f - width * 0.5f,
                     body.bounds().top(),
+                    width,
+                    height
+            );
+        }
+
+        private Aabb centerLowSmallBox() {
+            float width = body.width() * 0.25f;
+            float height = body.height() * 0.25f;
+            return new Aabb(
+                    body.x() + body.width() * 0.5f - width * 0.5f,
+                    body.y(),
                     width,
                     height
             );
@@ -2382,6 +2362,7 @@ final class TestRoomScene implements Scene {
         }
 
         private Aabb highSideBodyBox(int slot) {
+            slot = Math.max(1, slot);
             float gap = body.height() * 0.125f;
             float x = facingRight()
                     ? body.bounds().right() + (slot - 1) * (body.width() + gap)
