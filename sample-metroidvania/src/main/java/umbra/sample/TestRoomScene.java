@@ -1582,7 +1582,7 @@ final class TestRoomScene implements Scene {
                 clip.sourceYForFrame(frameIndex),
                 clip.frameWidth(),
                 clip.frameHeight(),
-                boss.body.x() + boss.body.width() * 0.5f - boss.drawWidth * 0.5f + boss.drawOffsetX,
+                boss.drawX(),
                 boss.body.y() + boss.drawOffsetY,
                 boss.drawWidth,
                 boss.drawHeight,
@@ -1978,6 +1978,12 @@ final class TestRoomScene implements Scene {
                 return body.velocityX() > 0.0f;
             }
             return facingDirection > 0;
+        }
+
+        private float drawX() {
+            float centeredX = body.x() + body.width() * 0.5f - drawWidth * 0.5f;
+            float directionalOffsetX = facingRight() ? -drawOffsetX : drawOffsetX;
+            return centeredX + directionalOffsetX;
         }
 
         private boolean attack2CanReach(Aabb targetBounds) {
