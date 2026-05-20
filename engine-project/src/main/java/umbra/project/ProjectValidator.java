@@ -1,8 +1,15 @@
 package umbra.project;
 
+import umbra.animation.AnimationClipDefinition;
+import umbra.animation.AnimationMetadataLoader;
+import umbra.animation.AnimationSetDefinition;
+
+import java.io.IOException;
+import java.io.Reader;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -23,6 +30,7 @@ public final class ProjectValidator {
     );
 
     private final GameManifestLoader manifestLoader = new GameManifestLoader();
+    private final CreatureDefinitionLoader creatureLoader = new CreatureDefinitionLoader();
 
     public ProjectValidationReport validate(Path projectRoot, String manifestPath) {
         Path absoluteRoot = projectRoot.toAbsolutePath().normalize();
@@ -38,6 +46,7 @@ public final class ProjectValidator {
         validateAssetRoot(absoluteRoot, manifest, issues);
         validateSavePolicy(absoluteRoot, manifest, issues);
         validateEnabledModules(manifest, issues);
+        validateCreatureDefinitions(absoluteRoot, manifest, issues);
         return new ProjectValidationReport(Optional.of(manifest), issues);
     }
 
@@ -73,6 +82,107 @@ public final class ProjectValidator {
             if (!KNOWN_MODULES.contains(module)) {
                 issues.add(error("module.unknown", "enabled_modules contains unknown module: " + module));
             }
+        }
+    }
+
+    private void validateCreatureDefinitions(Path projectRoot, GameManifest manifest, List<ProjectValidationIssue> issues) {
+        Path approvedAssetRoot = projectRoot.resolve(manifest.assetRoot()).normalize();
+        Set<String> creatureIds = new HashSet<>();
+        for (String definitionPath : manifest.creatureDefinitions()) {
+            CreatureDefinition creature;
+            try {
+                creature = creatureLoader.loadProjectCreature(projectRoot, definitionPath);
+            } catch (RuntimeException exception) {
+                issues.add(error("creature.invalid", "invalid creature definition " + definitionPath + ": " + exception.getMessage()));
+                continue;
+            }
+
+            if (!creatureIds.add(creature.id())) {
+                issues.add(error("creature.duplicate_id", "duplicate creature id: " + creature.id()));
+            }
+            validateCreatureAssetRoot(approvedAssetRoot, creature, issues);
+            validateCreatureAnimation(projectRoot, creature, issues);
+        }
+    }
+
+    private void validateCreatureAssetRoot(
+            Path approvedAssetRoot,
+            CreatureDefinition creature,
+            List<ProjectValidationIssue> issues
+    ) {
+        Path creatureAssetRoot = approvedAssetRoot.resolve(creature.assetRoot()).normalize();
+        if (!creatureAssetRoot.startsWith(approvedAssetRoot)) {
+            issues.add(error("creature.asset_root.escapes_assets",
+                    "creature asset_root escapes approved asset root: " + creature.id()));
+        }
+    }
+
+    private void validateCreatureAnimation(
+            Path projectRoot,
+            CreatureDefinition creature,
+            List<ProjectValidationIssue> issues
+    ) {
+        AnimationSetDefinition animationSet;
+        try {
+            animationSet = loadAnimationSet(projectRoot, creature.animationMetadata());
+        } catch (RuntimeException exception) {
+            issues.add(error("creature.animation.invalid",
+                    "invalid animation metadata for creature " + creature.id() + ": " + exception.getMessage()));
+            return;
+        }
+
+        CreatureStateModel stateModel = creature.states();
+        for (String state : stateModel.requiredStates()) {
+            String clipId = stateModel.animationMapping().get(state);
+            if (clipId == null || clipId.isBlank()) {
+                issues.add(error("creature.state.missing_mapping",
+                        "required state has no animation mapping: " + creature.id() + "." + state));
+                continue;
+            }
+            if (!animationSet.hasClip(clipId)) {
+                issues.add(error("creature.state.missing_clip",
+                        "state maps to missing animation clip: " + creature.id() + "." + state + " -> " + clipId));
+            }
+        }
+        for (String clipId : stateModel.animationMapping().values()) {
+            if (!animationSet.hasClip(clipId)) {
+                issues.add(error("creature.state.missing_clip",
+                        "animation mapping references missing clip: " + creature.id() + " -> " + clipId));
+            }
+        }
+        validateCreatureAttackEvent(creature, animationSet, issues);
+    }
+
+    private void validateCreatureAttackEvent(
+            CreatureDefinition creature,
+            AnimationSetDefinition animationSet,
+            List<ProjectValidationIssue> issues
+    ) {
+        if (creature.combat().attackDamage() <= 0) {
+            return;
+        }
+        String attackClipId = creature.states().animationMapping().get("attack");
+        if (attackClipId == null || !animationSet.hasClip(attackClipId)) {
+            return;
+        }
+        AnimationClipDefinition attackClip = animationSet.clip(attackClipId);
+        boolean hasActiveEvent = attackClip.events().stream()
+                .anyMatch(event -> creature.combat().attackActiveEvent().equals(event.id()));
+        if (!hasActiveEvent) {
+            issues.add(error("creature.attack.missing_active_event",
+                    "attack clip has no active event " + creature.combat().attackActiveEvent() + ": " + creature.id()));
+        }
+    }
+
+    private AnimationSetDefinition loadAnimationSet(Path projectRoot, String relativePath) {
+        Path animationPath = projectRoot.resolve(relativePath).normalize();
+        if (!animationPath.startsWith(projectRoot)) {
+            throw new CreatureDefinitionValidationException("animation_metadata escapes project root: " + relativePath);
+        }
+        try (Reader reader = Files.newBufferedReader(animationPath)) {
+            return new AnimationMetadataLoader().load(reader);
+        } catch (IOException exception) {
+            throw new CreatureDefinitionValidationException("failed to read animation metadata: " + relativePath, exception);
         }
     }
 

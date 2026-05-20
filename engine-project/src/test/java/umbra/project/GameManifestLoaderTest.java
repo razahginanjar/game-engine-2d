@@ -38,6 +38,9 @@ final class GameManifestLoaderTest {
                     "boss",
                     "progression",
                     "save"
+                  ],
+                  "creature_definitions": [
+                    "metadata/creatures/goblin.creature.json"
                   ]
                 }
                 """));
@@ -49,6 +52,7 @@ final class GameManifestLoaderTest {
         assertEquals(new SavePolicy(true, ".umbra2d/sample-save.json"), manifest.savePolicy());
         assertEquals(List.of("room", "animation", "ai", "combat", "boss", "progression", "save"),
                 manifest.enabledModules());
+        assertEquals(List.of("metadata/creatures/goblin.creature.json"), manifest.creatureDefinitions());
     }
 
     @Test

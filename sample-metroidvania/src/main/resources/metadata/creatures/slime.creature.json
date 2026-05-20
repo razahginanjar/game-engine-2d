@@ -1,0 +1,43 @@
+{
+  "id": "slime",
+  "display_name": "Green Slime",
+  "category": "monster",
+  "asset_root": "monster/Slime_Enemy_Pixel_Monsters_Vol_1/Slime_Enemy_Pixel_Monsters_Vol_1/Slime/frames/green",
+  "animation_metadata": "sample-metroidvania/src/main/resources/metadata/slime_green.anim.json",
+  "tags": ["ground", "contact"],
+  "physical": {
+    "body_width": 28,
+    "body_height": 22,
+    "hurtbox_width": 30,
+    "hurtbox_height": 24,
+    "movement_speed": 38,
+    "flying": false
+  },
+  "ai": {
+    "profile": "ground_contact",
+    "vision_range": 150,
+    "caution_range": 54,
+    "attack_range": 32,
+    "evade_probability": 0.05,
+    "uses_shield": false
+  },
+  "states": {
+    "required": ["idle", "move", "attack", "hurt", "death"],
+    "optional": ["slide"],
+    "disabled": ["shield", "fly"],
+    "animation_mapping": {
+      "idle": "idle",
+      "move": "move",
+      "attack": "attack",
+      "hurt": "take_hit",
+      "death": "death",
+      "slide": "slide_loop"
+    }
+  },
+  "combat": {
+    "max_health": 2,
+    "contact_damage": 1,
+    "attack_damage": 1,
+    "attack_active_event": "attack_active"
+  }
+}

@@ -34,7 +34,8 @@ public final class GameManifestLoader {
                 requiredString(root, "default_spawn_id"),
                 requiredString(root, "asset_root"),
                 readSavePolicy(root),
-                readEnabledModules(root)
+                readEnabledModules(root),
+                readOptionalStringArray(root, "creature_definitions")
         );
     }
 
@@ -50,9 +51,27 @@ public final class GameManifestLoader {
 
     private List<String> readEnabledModules(JsonObject root) {
         JsonArray modules = requiredArray(root, "enabled_modules");
+        return readStringArray(modules, "enabled_modules");
+    }
+
+    private List<String> readOptionalStringArray(JsonObject root, String key) {
+        if (!root.has(key)) {
+            return List.of();
+        }
+        if (!root.get(key).isJsonArray()) {
+            throw new GameManifestValidationException(key + " must be an array");
+        }
+        return readStringArray(root.getAsJsonArray(key), key);
+    }
+
+    private List<String> readStringArray(JsonArray values, String key) {
         List<String> result = new ArrayList<>();
-        for (JsonElement module : modules) {
-            result.add(module.getAsString());
+        for (JsonElement value : values) {
+            String text = value.getAsString();
+            if (text.isBlank()) {
+                throw new GameManifestValidationException(key + " must not contain blank values");
+            }
+            result.add(text);
         }
         return result;
     }

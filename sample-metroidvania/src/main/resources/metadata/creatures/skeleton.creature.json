@@ -1,0 +1,42 @@
+{
+  "id": "skeleton",
+  "display_name": "Skeleton Guard",
+  "category": "monster",
+  "asset_root": "monster/Monsters_Creatures_Fantasy/Monsters_Creatures_Fantasy/Skeleton",
+  "animation_metadata": "sample-metroidvania/src/main/resources/metadata/skeleton.anim.json",
+  "tags": ["ground", "weapon", "shield"],
+  "physical": {
+    "body_width": 24,
+    "body_height": 42,
+    "hurtbox_width": 28,
+    "hurtbox_height": 44,
+    "movement_speed": 54,
+    "flying": false
+  },
+  "ai": {
+    "profile": "ground_guard",
+    "vision_range": 220,
+    "caution_range": 82,
+    "attack_range": 62,
+    "evade_probability": 0.10,
+    "uses_shield": true
+  },
+  "states": {
+    "required": ["move", "attack", "hurt", "death", "shield"],
+    "optional": [],
+    "disabled": ["idle", "fly"],
+    "animation_mapping": {
+      "move": "move",
+      "attack": "attack",
+      "hurt": "take_hit",
+      "death": "death",
+      "shield": "shield"
+    }
+  },
+  "combat": {
+    "max_health": 4,
+    "contact_damage": 1,
+    "attack_damage": 1,
+    "attack_active_event": "attack_active"
+  }
+}

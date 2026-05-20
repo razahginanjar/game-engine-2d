@@ -1,0 +1,42 @@
+{
+  "id": "mushroom",
+  "display_name": "Mushroom",
+  "category": "monster",
+  "asset_root": "monster/Monsters_Creatures_Fantasy/Monsters_Creatures_Fantasy/Mushroom",
+  "animation_metadata": "sample-metroidvania/src/main/resources/metadata/mushroom.anim.json",
+  "tags": ["ground"],
+  "physical": {
+    "body_width": 26,
+    "body_height": 30,
+    "hurtbox_width": 30,
+    "hurtbox_height": 32,
+    "movement_speed": 48,
+    "flying": false
+  },
+  "ai": {
+    "profile": "ground_melee",
+    "vision_range": 175,
+    "caution_range": 64,
+    "attack_range": 38,
+    "evade_probability": 0.08,
+    "uses_shield": false
+  },
+  "states": {
+    "required": ["idle", "move", "attack", "hurt", "death"],
+    "optional": [],
+    "disabled": ["shield", "fly"],
+    "animation_mapping": {
+      "idle": "idle",
+      "move": "move",
+      "attack": "attack",
+      "hurt": "take_hit",
+      "death": "death"
+    }
+  },
+  "combat": {
+    "max_health": 3,
+    "contact_damage": 1,
+    "attack_damage": 1,
+    "attack_active_event": "attack_active"
+  }
+}

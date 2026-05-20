@@ -15,5 +15,12 @@
     "boss",
     "progression",
     "save"
+  ],
+  "creature_definitions": [
+    "sample-metroidvania/src/main/resources/metadata/creatures/slime.creature.json",
+    "sample-metroidvania/src/main/resources/metadata/creatures/goblin.creature.json",
+    "sample-metroidvania/src/main/resources/metadata/creatures/flying_eye.creature.json",
+    "sample-metroidvania/src/main/resources/metadata/creatures/skeleton.creature.json",
+    "sample-metroidvania/src/main/resources/metadata/creatures/mushroom.creature.json"
   ]
 }

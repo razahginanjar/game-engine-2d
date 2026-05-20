@@ -8,7 +8,8 @@ public record GameManifest(
         String defaultSpawnId,
         String assetRoot,
         SavePolicy savePolicy,
-        List<String> enabledModules
+        List<String> enabledModules,
+        List<String> creatureDefinitions
 ) {
     public GameManifest {
         requireText("title", title);
@@ -27,6 +28,13 @@ public record GameManifest(
         }
         for (String module : enabledModules) {
             requireSnakeCase("enabled module", module);
+        }
+        creatureDefinitions = creatureDefinitions == null ? List.of() : List.copyOf(creatureDefinitions);
+        for (String definitionPath : creatureDefinitions) {
+            requireText("creature definition path", definitionPath);
+            if (definitionPath.startsWith("/") || definitionPath.matches("^[A-Za-z]:.*")) {
+                throw new GameManifestValidationException("creature definition paths must be project-relative");
+            }
         }
     }
 

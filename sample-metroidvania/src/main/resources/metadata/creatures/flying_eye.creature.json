@@ -1,0 +1,41 @@
+{
+  "id": "flying_eye",
+  "display_name": "Flying Eye",
+  "category": "monster",
+  "asset_root": "monster/Monsters_Creatures_Fantasy/Monsters_Creatures_Fantasy/Flying eye",
+  "animation_metadata": "sample-metroidvania/src/main/resources/metadata/flying_eye.anim.json",
+  "tags": ["flying"],
+  "physical": {
+    "body_width": 26,
+    "body_height": 26,
+    "hurtbox_width": 30,
+    "hurtbox_height": 30,
+    "movement_speed": 70,
+    "flying": true
+  },
+  "ai": {
+    "profile": "flying_melee",
+    "vision_range": 230,
+    "caution_range": 76,
+    "attack_range": 42,
+    "evade_probability": 0.22,
+    "uses_shield": false
+  },
+  "states": {
+    "required": ["move", "attack", "hurt", "death"],
+    "optional": [],
+    "disabled": ["idle", "shield"],
+    "animation_mapping": {
+      "move": "move",
+      "attack": "attack",
+      "hurt": "take_hit",
+      "death": "death"
+    }
+  },
+  "combat": {
+    "max_health": 2,
+    "contact_damage": 1,
+    "attack_damage": 1,
+    "attack_active_event": "attack_active"
+  }
+}
