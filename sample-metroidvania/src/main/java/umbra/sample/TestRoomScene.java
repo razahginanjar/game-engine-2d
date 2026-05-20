@@ -26,10 +26,12 @@ import umbra.boss.BossArenaController;
 import umbra.boss.BossArenaDefinition;
 import umbra.boss.BossArenaInput;
 import umbra.boss.BossArenaStatus;
+import umbra.boss.BossAttackDefinition;
 import umbra.boss.BossAttackPattern;
 import umbra.boss.BossAttackSelector;
+import umbra.boss.BossDefinition;
+import umbra.boss.BossDefinitionLoader;
 import umbra.boss.BossFightState;
-import umbra.boss.BossPhaseDefinition;
 import umbra.combat.AttackDefinition;
 import umbra.combat.AttackPhase;
 import umbra.combat.AttackTimelineDefinition;
@@ -135,6 +137,14 @@ final class TestRoomScene implements Scene {
     private static final float PLAYER_SPRITE_OFFSET_Y = 0.0f;
     private static final String SLIME_TEXTURE_PREFIX = "slime_green_";
     private static final String IMPALER_TEXTURE_PREFIX = "impaler_";
+    private static final Set<String> IMPALER_HITBOX_PROFILES = Set.of(
+            "impaler_attack1",
+            "impaler_attack2",
+            "impaler_attack3",
+            "impaler_attack4",
+            "impaler_attack5",
+            "impaler_attack6"
+    );
     private static final int IMPALER_TEXTURE_WIDTH = 360;
     private static final int IMPALER_TEXTURE_HEIGHT = 149;
     private static final float EDITOR_BUTTON_X = 12.0f;
@@ -195,17 +205,9 @@ final class TestRoomScene implements Scene {
     private final AttackTimelinePlayer attackTimeline = new AttackTimelinePlayer();
     private final AttackTimelinePlayer bossAttackTimeline = new AttackTimelinePlayer();
     private final BossAttackSelector bossAttackSelector = new BossAttackSelector();
-    private final List<BossAttackMove> bossAttackMoves = List.of(
-            bossAttackMove("impaler_stab", "phase_1", "attack2", 0.0f, 72.0f, 0.82f, 8, 10.0f, 1),
-            bossAttackMove("impaler_ground_sweep", "phase_1", "attack1", 0.0f, 104.0f, 1.18f, 25, 12.0f, 1),
-            bossAttackMove("impaler_delayed_cross", "phase_1", "attack3", 0.0f, 88.0f, 1.08f, 21, 12.0f, 1),
-            bossAttackMove("impaler_long_lunge", "phase_2", "attack4", 24.0f, 156.0f, 0.72f, 26, 13.0f, 1),
-            bossAttackMove("impaler_shadow_chain", "phase_2", "attack5", 0.0f, 132.0f, 0.94f, 29, 14.0f, 1),
-            bossAttackMove("impaler_finisher", "phase_2", "attack6", 0.0f, 96.0f, 1.65f, 20, 14.0f, 2)
-    );
-    private final List<BossAttackPattern> bossAttackPatterns = bossAttackMoves.stream()
-            .map(BossAttackMove::pattern)
-            .toList();
+    private final BossDefinition impalerBossDefinition;
+    private final List<BossAttackMove> bossAttackMoves;
+    private final List<BossAttackPattern> bossAttackPatterns;
     private final AttackTimelineDefinition slashTimeline = new AttackTimelineDefinition(
             new AttackDefinition("player_slash_01", 1, 160.0f, 40.0f, 0.045f, 0.18f, "slash"),
             0.06f,
@@ -248,35 +250,26 @@ final class TestRoomScene implements Scene {
     private float playerDashCooldownSeconds;
     private int playerDashDirection = 1;
 
-    private static BossAttackMove bossAttackMove(
-            String id,
-            String phaseId,
-            String clipId,
-            float minRange,
-            float maxRange,
-            float cooldownSeconds,
-            int frameCount,
-            float fps,
-            int damage
-    ) {
+    private static BossAttackMove bossAttackMove(BossAttackDefinition definition) {
         AttackDefinition attack = new AttackDefinition(
-                id,
-                damage,
-                180.0f + damage * 40.0f,
-                70.0f,
-                0.05f + damage * 0.015f,
-                0.20f + damage * 0.05f,
-                "boss_spear"
+                definition.id(),
+                definition.damage(),
+                definition.knockbackX(),
+                definition.knockbackY(),
+                definition.hitPauseSeconds(),
+                definition.hitStunSeconds(),
+                definition.damageType()
         );
         AttackTimelineDefinition timeline = new AttackTimelineDefinition(
                 attack,
                 0.0f,
-                frameCount / fps,
+                definition.frameCount() / definition.fps(),
                 0.08f
         );
         return new BossAttackMove(
-                new BossAttackPattern(id, phaseId, minRange, maxRange, cooldownSeconds),
-                clipId,
+                definition.pattern(),
+                definition.clipId(),
+                definition.hitboxProfile(),
                 timeline
         );
     }
@@ -302,6 +295,12 @@ final class TestRoomScene implements Scene {
                 List.of("move", "idle", "attack", "take_hit", "death"));
         this.impalerAnimationSet = loadAnimationSet("/metadata/impaler.anim.json",
                 List.of("idle", "move", "attack1", "attack2", "attack3", "attack4", "attack5", "attack6", "death"));
+        this.impalerBossDefinition = loadBossDefinition("/metadata/bosses/impaler.boss.json");
+        validateBossContent(impalerBossDefinition, impalerAnimationSet);
+        this.bossAttackMoves = impalerBossDefinition.attacks().stream()
+                .map(TestRoomScene::bossAttackMove)
+                .toList();
+        this.bossAttackPatterns = impalerBossDefinition.attackPatterns();
         loadExternalSprites();
         this.roomRegistry = loadRoomRegistry();
         visitedRoomIds.add(START_ROOM_ID);
@@ -790,14 +789,11 @@ final class TestRoomScene implements Scene {
         }
 
         RoomDefinition.BossArenaDefinition roomArena = room.bossArenas().get(0);
-        bossArenaController = new BossArenaController(toBossArenaDefinition(roomArena), List.of(
-                new BossPhaseDefinition("phase_1", 1.0f),
-                new BossPhaseDefinition("phase_2", 0.5f)
-        ));
+        bossArenaController = new BossArenaController(toBossArenaDefinition(roomArena), impalerBossDefinition.phases());
         if (!worldFlagIds.contains(roomArena.defeatFlagId())) {
             for (RoomDefinition.SpawnPoint spawn : room.spawns()) {
                 if (spawn.type().equals("boss_spawn") && spawn.id().startsWith(IMPALER_BOSS_ID)) {
-                    boss = new BossActor(spawn.id(), spawn.x(), spawn.y(), impalerAnimationSet);
+                    boss = new BossActor(spawn.id(), spawn.x(), spawn.y(), impalerAnimationSet, impalerBossDefinition.maxHealth());
                     break;
                 }
             }
@@ -1186,6 +1182,28 @@ final class TestRoomScene implements Scene {
         }
     }
 
+    private BossDefinition loadBossDefinition(String resourcePath) {
+        try (InputStreamReader reader = new InputStreamReader(
+                Objects.requireNonNull(TestRoomScene.class.getResourceAsStream(resourcePath)),
+                StandardCharsets.UTF_8
+        )) {
+            return new BossDefinitionLoader().load(reader);
+        } catch (IOException exception) {
+            throw new IllegalStateException("failed to close boss resource: " + resourcePath, exception);
+        }
+    }
+
+    private void validateBossContent(BossDefinition definition, AnimationSetDefinition animationSet) {
+        for (BossAttackDefinition attack : definition.attacks()) {
+            if (!animationSet.hasClip(attack.clipId())) {
+                throw new IllegalStateException("boss attack references missing clip: " + attack.id());
+            }
+            if (!IMPALER_HITBOX_PROFILES.contains(attack.hitboxProfile())) {
+                throw new IllegalStateException("boss attack references unknown hitbox profile: " + attack.id());
+            }
+        }
+    }
+
     private void updatePlayerHitStun(float deltaSeconds) {
         MovementResult result = playerKnockbackMover.update(
                 player,
@@ -1215,7 +1233,7 @@ final class TestRoomScene implements Scene {
         }
         boolean defeatFlagSet = worldFlagIds.contains(bossArenaController.definition().defeatFlagId());
         int currentHealth = boss == null || defeatFlagSet ? 0 : boss.health.currentHealth();
-        int maxHealth = boss == null ? BossActor.MAX_HEALTH : boss.health.maxHealth();
+        int maxHealth = boss == null ? impalerBossDefinition.maxHealth() : boss.health.maxHealth();
         bossArenaStatus = bossArenaController.update(new BossArenaInput(
                 player.bounds(),
                 currentHealth,
@@ -2071,12 +2089,16 @@ final class TestRoomScene implements Scene {
     private record BossAttackMove(
             BossAttackPattern pattern,
             String clipId,
+            String hitboxProfile,
             AttackTimelineDefinition timeline
     ) {
         private BossAttackMove {
             Objects.requireNonNull(pattern, "pattern must not be null");
             if (clipId == null || clipId.isBlank()) {
                 throw new IllegalArgumentException("clipId must not be blank");
+            }
+            if (hitboxProfile == null || hitboxProfile.isBlank()) {
+                throw new IllegalArgumentException("hitboxProfile must not be blank");
             }
             Objects.requireNonNull(timeline, "timeline must not be null");
         }
@@ -2094,12 +2116,10 @@ final class TestRoomScene implements Scene {
     }
 
     private static final class BossActor {
-        private static final int MAX_HEALTH = 18;
-
         private final KinematicBody body;
         private final AnimationSetDefinition animationSet;
         private final AnimationPlayer animator = new AnimationPlayer();
-        private final HealthPool health = new HealthPool(MAX_HEALTH, 0.12f);
+        private final HealthPool health;
         private final float drawWidth = 360.0f;
         private final float drawHeight = 149.0f;
         private final float drawOffsetX = 110.0f;
@@ -2108,9 +2128,10 @@ final class TestRoomScene implements Scene {
         private int facingDirection = -1;
         private float attackStartX;
 
-        private BossActor(String spawnId, float spawnX, float spawnY, AnimationSetDefinition animationSet) {
+        private BossActor(String spawnId, float spawnX, float spawnY, AnimationSetDefinition animationSet, int maxHealth) {
             this.body = new KinematicBody(spawnX, spawnY, 58.0f, 92.0f);
             this.animationSet = animationSet;
+            this.health = new HealthPool(maxHealth, 0.12f);
             this.animator.play(animationSet.clip("idle"));
         }
 
@@ -2203,13 +2224,13 @@ final class TestRoomScene implements Scene {
                 return List.of();
             }
             int frame = frameIndex + 1;
-            return switch (attackMove.clipId()) {
-                case "attack1" -> attack1Bounds(frame);
-                case "attack2" -> attack2Bounds(frame);
-                case "attack3" -> attack3Bounds(frame);
-                case "attack4" -> attack4Bounds(frame);
-                case "attack5" -> attack5Bounds(frame);
-                case "attack6" -> attack6Bounds(frame);
+            return switch (attackMove.hitboxProfile()) {
+                case "impaler_attack1" -> attack1Bounds(frame);
+                case "impaler_attack2" -> attack2Bounds(frame);
+                case "impaler_attack3" -> attack3Bounds(frame);
+                case "impaler_attack4" -> attack4Bounds(frame);
+                case "impaler_attack5" -> attack5Bounds(frame);
+                case "impaler_attack6" -> attack6Bounds(frame);
                 default -> List.of();
             };
         }
