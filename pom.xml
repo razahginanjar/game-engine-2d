@@ -23,6 +23,7 @@
         <module>engine-combat</module>
         <module>engine-boss</module>
         <module>engine-project</module>
+        <module>tools-validation</module>
         <module>engine-progression</module>
         <module>sample-metroidvania</module>
         <module>desktop</module>

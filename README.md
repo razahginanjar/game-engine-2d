@@ -17,6 +17,21 @@ The first milestone follows the project blueprint: build a playable vertical sli
 mvn test
 ```
 
+## Validate Project Content
+
+Use the checked-in helper to validate the sample project manifest before launch:
+
+```powershell
+.\scripts\validate-project.ps1
+```
+
+Or run the validator directly:
+
+```powershell
+mvn -pl tools-validation -am install "-DskipTests"
+mvn -f tools-validation/pom.xml org.codehaus.mojo:exec-maven-plugin:3.2.0:java
+```
+
 ## Run Desktop Sample
 
 Use the checked-in helper:
@@ -74,6 +89,7 @@ Do not commit local absolute paths, credentials, generated build folders, IDE st
 - `engine-combat`: hitbox/hurtbox definitions and overlap resolution, team filtering, attack timing, damage events, health, invulnerability frames, hit pause, and hit stun.
 - `engine-progression`: unlocked ability state and ability pickup/gate trigger resolution.
 - `engine-project`: project manifest loading and validation for title, start room, default spawn, asset root, save policy, and enabled modules.
+- `tools-validation`: command-line project validation entry point.
 - `sample-metroidvania`: LibGDX graybox room proving movement and collision.
 - `desktop`: LWJGL3 launcher.
 
