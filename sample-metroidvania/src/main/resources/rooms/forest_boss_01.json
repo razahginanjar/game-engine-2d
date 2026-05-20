@@ -25,7 +25,7 @@
   "spawns": [
     { "id": "entry_left", "type": "player_spawn", "x": 96, "y": 64 },
     { "id": "checkpoint_boss", "type": "checkpoint", "x": 192, "y": 64 },
-    { "id": "impaler_boss", "type": "boss_spawn", "x": 760, "y": 64 }
+    { "id": "impaler_boss", "type": "boss_spawn", "x": 760, "y": 32 }
   ],
   "doors": [
     { "id": "left_exit", "x": 32, "y": 32, "w": 24, "h": 96, "target_room": "forest_test_02", "target_spawn": "entry_right" }

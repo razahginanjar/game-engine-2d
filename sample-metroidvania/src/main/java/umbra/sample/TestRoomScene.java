@@ -228,7 +228,7 @@ final class TestRoomScene implements Scene {
     private BossActor boss;
     private BossArenaController bossArenaController;
     private BossArenaStatus bossArenaStatus;
-    private HitboxInstance currentBossAttackHitbox;
+    private final List<HitboxInstance> currentBossAttackHitboxes = new ArrayList<>();
     private float deathRespawnSeconds;
     private float roomTransitionLockoutSeconds;
     private float playerDashSeconds;
@@ -619,7 +619,7 @@ final class TestRoomScene implements Scene {
         hitPauseTimer.reset();
         playerHitStunTimer.reset();
         currentAttackHitbox = null;
-        currentBossAttackHitbox = null;
+        currentBossAttackHitboxes.clear();
         attackTimeline.reset();
         bossAttackTimeline.reset();
         bossAttackSelector.reset();
@@ -734,7 +734,7 @@ final class TestRoomScene implements Scene {
         boss = null;
         bossArenaController = null;
         bossArenaStatus = null;
-        currentBossAttackHitbox = null;
+        currentBossAttackHitboxes.clear();
         bossAttackTimeline.reset();
         bossAttackSelector.reset();
         if (room.bossArenas().isEmpty()) {
@@ -1058,9 +1058,13 @@ final class TestRoomScene implements Scene {
                     enemyAttackHitboxes.add(enemy.createAttackHitbox(enemyContactAttack));
                 }
             }
+            currentBossAttackHitboxes.clear();
             if (boss != null && !boss.health.defeated() && bossAttackActive()) {
-                currentBossAttackHitbox = boss.createAttackHitbox(bossAttackTimelineDefinition.attack());
-                enemyAttackHitboxes.add(currentBossAttackHitbox);
+                currentBossAttackHitboxes.addAll(boss.createAttack2Hitboxes(
+                        bossAttackTimelineDefinition.attack(),
+                        boss.animator.frameIndex()
+                ));
+                enemyAttackHitboxes.addAll(currentBossAttackHitboxes);
             }
             List<DamageEvent> damageEvents = combatResolver.resolve(
                     enemyAttackHitboxes,
@@ -1076,7 +1080,7 @@ final class TestRoomScene implements Scene {
             }
         }
         if (bossAttackTimeline.phase() == AttackPhase.FINISHED) {
-            currentBossAttackHitbox = null;
+            currentBossAttackHitboxes.clear();
         }
     }
 
@@ -1084,7 +1088,7 @@ final class TestRoomScene implements Scene {
         if (bossArenaController != null && worldFlagIds.add(bossArenaController.definition().defeatFlagId())) {
             persistCheckpointSave();
         }
-        currentBossAttackHitbox = null;
+        currentBossAttackHitboxes.clear();
         bossAttackTimeline.reset();
         updateBossArena();
     }
@@ -1106,8 +1110,8 @@ final class TestRoomScene implements Scene {
                 && bossArenaStatus.active()
                 && clip != null
                 && clip.id().equals("attack")
-                && (bossAttackTimeline.hitboxActive()
-                || clip.hasEvent(boss.animator.frameIndex(), ANIMATION_EVENT_ATTACK_ACTIVE));
+                && boss.animator.frameIndex() >= 1
+                && boss.animator.frameIndex() <= 6;
     }
 
     private EnemyActor findEnemy(int entityId) {
@@ -1189,7 +1193,7 @@ final class TestRoomScene implements Scene {
             );
             if (selectedAttack.isPresent()) {
                 bossAttackTimeline.start(bossAttackTimelineDefinition);
-                currentBossAttackHitbox = boss.createAttackHitbox(bossAttackTimelineDefinition.attack());
+                currentBossAttackHitboxes.clear();
                 boss.animator.restart(boss.animationSet.clip("attack"));
                 boss.body.setVelocityX(0.0f);
                 return;
@@ -1630,7 +1634,9 @@ final class TestRoomScene implements Scene {
         if (boss != null) {
             debugGeometryBuilder.addAabb(drawList, boss.body.bounds(), BOSS_HURTBOX_COLOR);
             if (!boss.health.defeated() && bossAttackActive()) {
-                debugGeometryBuilder.addAabb(drawList, boss.attackBounds(), ATTACK_ACTIVE_COLOR);
+                for (Aabb attackBounds : boss.attack2Bounds(boss.animator.frameIndex())) {
+                    debugGeometryBuilder.addAabb(drawList, attackBounds, ATTACK_ACTIVE_COLOR);
+                }
             }
         }
         if (selectedEnemy != null && enemies.contains(selectedEnemy)) {
@@ -1643,9 +1649,12 @@ final class TestRoomScene implements Scene {
             Aabb hitbox = currentAttackHitbox.bounds();
             debugGeometryBuilder.addAabb(drawList, hitbox, hitboxColor);
         }
-        if (currentBossAttackHitbox != null) {
-            Aabb hitbox = currentBossAttackHitbox.bounds();
-            debugGeometryBuilder.addAabb(drawList, hitbox, bossAttackActive() ? ATTACK_ACTIVE_COLOR : ATTACK_INACTIVE_COLOR);
+        for (HitboxInstance bossHitbox : currentBossAttackHitboxes) {
+            debugGeometryBuilder.addAabb(
+                    drawList,
+                    bossHitbox.bounds(),
+                    bossHitbox.active() ? ATTACK_ACTIVE_COLOR : ATTACK_INACTIVE_COLOR
+            );
         }
         debugRenderer.render(drawList);
     }
@@ -1953,16 +1962,15 @@ final class TestRoomScene implements Scene {
         private final AnimationSetDefinition animationSet;
         private final AnimationPlayer animator = new AnimationPlayer();
         private final HealthPool health = new HealthPool(MAX_HEALTH, 0.12f);
-        private final HitboxDefinition attackHitboxDefinition = new HitboxDefinition(112.0f, 78.0f, 2.0f, 12.0f);
         private final float drawWidth = 360.0f;
         private final float drawHeight = 149.0f;
-        private final float drawOffsetX = 88.0f;
-        private final float drawOffsetY = -28.0f;
+        private final float drawOffsetX = 110.0f;
+        private final float drawOffsetY = -5.0f;
         private final DebugColor fallbackColor = new DebugColor(0.72f, 0.58f, 0.35f, 1.0f);
         private int facingDirection = -1;
 
         private BossActor(String spawnId, float spawnX, float spawnY, AnimationSetDefinition animationSet) {
-            this.body = new KinematicBody(spawnX, spawnY, 58.0f, 104.0f);
+            this.body = new KinematicBody(spawnX, spawnY, 58.0f, 92.0f);
             this.animationSet = animationSet;
             this.animator.play(animationSet.clip("idle"));
         }
@@ -1974,22 +1982,52 @@ final class TestRoomScene implements Scene {
             return facingDirection > 0;
         }
 
-        private HitboxInstance createAttackHitbox(AttackDefinition attack) {
-            return attackHitboxDefinition.createInstance(
-                    BOSS_ENTITY_ID,
-                    CombatTeam.ENEMY,
-                    attack,
-                    body.bounds(),
-                    facingRight() ? FacingDirection.RIGHT : FacingDirection.LEFT,
-                    true
+        private List<HitboxInstance> createAttack2Hitboxes(AttackDefinition attack, int frameIndex) {
+            return attack2Bounds(frameIndex).stream()
+                    .map(bounds -> new HitboxInstance(BOSS_ENTITY_ID, CombatTeam.ENEMY, attack, bounds, true))
+                    .toList();
+        }
+
+        private List<Aabb> attack2Bounds(int frameIndex) {
+            if (frameIndex >= 1 && frameIndex <= 3) {
+                return List.of(facingBodyBox(), topBox());
+            }
+            if (frameIndex >= 4 && frameIndex <= 6) {
+                return List.of(oppositeBodyBox(), facingSmallBox());
+            }
+            return List.of();
+        }
+
+        private Aabb facingBodyBox() {
+            return facingRight()
+                    ? new Aabb(body.bounds().right(), body.y(), body.width(), body.height())
+                    : new Aabb(body.x() - body.width(), body.y(), body.width(), body.height());
+        }
+
+        private Aabb oppositeBodyBox() {
+            return facingRight()
+                    ? new Aabb(body.x() - body.width(), body.y(), body.width(), body.height())
+                    : new Aabb(body.bounds().right(), body.y(), body.width(), body.height());
+        }
+
+        private Aabb topBox() {
+            float width = body.width() / 3.0f;
+            float height = body.height() / 3.0f;
+            return new Aabb(
+                    body.x() + body.width() * 0.5f - width * 0.5f,
+                    body.bounds().top(),
+                    width,
+                    height
             );
         }
 
-        private Aabb attackBounds() {
-            return attackHitboxDefinition.createBounds(
-                    body.bounds(),
-                    facingRight() ? FacingDirection.RIGHT : FacingDirection.LEFT
-            );
+        private Aabb facingSmallBox() {
+            float width = body.width() / 3.0f;
+            float height = body.height() * 0.5f;
+            float y = body.y() + body.height() * 0.25f;
+            return facingRight()
+                    ? new Aabb(body.bounds().right(), y, width, height)
+                    : new Aabb(body.x() - width, y, width, height);
         }
     }
 
