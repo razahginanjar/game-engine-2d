@@ -67,6 +67,8 @@ import umbra.physics.player.PlayerState;
 import umbra.progression.AbilityGateBlock;
 import umbra.progression.AbilityState;
 import umbra.progression.AbilityTriggerResolver;
+import umbra.project.GameManifest;
+import umbra.project.GameManifestLoader;
 import umbra.render.debug.DebugColor;
 import umbra.render.debug.DebugDrawList;
 import umbra.render.debug.DebugGeometryBuilder;
@@ -160,12 +162,9 @@ final class TestRoomScene implements Scene {
     private static final float EDITOR_BUTTON_WIDTH = 132.0f;
     private static final float EDITOR_BUTTON_HEIGHT = 24.0f;
     private static final float EDITOR_BUTTON_GAP = 6.0f;
-    private static final String START_ROOM_ID = "forest_test_01";
-    private static final String DEFAULT_PLAYER_SPAWN_ID = "entry_left";
     private static final String ABILITY_DASH = "dash";
     private static final String ABILITY_DOUBLE_JUMP = "double_jump";
     private static final String IMPALER_BOSS_ID = "impaler";
-    private static final String SAMPLE_SAVE_PATH = ".umbra2d/sample-save.json";
     private static final float CHECKPOINT_TRIGGER_WIDTH = 40.0f;
     private static final float CHECKPOINT_TRIGGER_HEIGHT = 48.0f;
     private static final float DEATH_RESPAWN_DELAY_SECONDS = 1.0f;
@@ -192,6 +191,7 @@ final class TestRoomScene implements Scene {
     private final SaveGameCodec saveGameCodec = new SaveGameCodec();
     private final Camera camera;
     private final EngineConfig config;
+    private final GameManifest gameManifest;
     private final RoomRegistry roomRegistry;
     private RoomDefinition room;
     private CollisionGrid grid;
@@ -242,8 +242,8 @@ final class TestRoomScene implements Scene {
     private int nextEnemyEntityId = FIRST_ENEMY_ENTITY_ID;
     private EnemyActor selectedEnemy;
     private PlayerState state = PlayerState.IDLE;
-    private String currentRoomId = START_ROOM_ID;
-    private final CheckpointState checkpointState = new CheckpointState(START_ROOM_ID, DEFAULT_PLAYER_SPAWN_ID);
+    private String currentRoomId;
+    private final CheckpointState checkpointState;
     private final Set<String> visitedRoomIds = new LinkedHashSet<>();
     private final AbilityState abilityState = new AbilityState();
     private final Set<String> worldFlagIds = new LinkedHashSet<>();
@@ -289,6 +289,9 @@ final class TestRoomScene implements Scene {
         this.debugRenderer = new LibGdxDebugShapeRenderer(shapes);
         this.camera = camera;
         this.config = config;
+        this.gameManifest = loadGameManifest("/game.manifest.json");
+        this.currentRoomId = gameManifest.startRoomId();
+        this.checkpointState = new CheckpointState(gameManifest.startRoomId(), gameManifest.defaultSpawnId());
         this.playerAnimationSet = loadAnimationSet("/metadata/player_knight.anim.json",
                 List.of("idle", "run", "jump", "fall", "attack", "hit", "death"));
         this.slimeAnimationSet = loadAnimationSet("/metadata/slime_green.anim.json",
@@ -311,11 +314,11 @@ final class TestRoomScene implements Scene {
         this.bossAttackPatterns = impalerBossDefinition.attackPatterns();
         loadExternalSprites();
         this.roomRegistry = loadRoomRegistry();
-        visitedRoomIds.add(START_ROOM_ID);
+        visitedRoomIds.add(gameManifest.startRoomId());
         loadCheckpointSave();
         this.room = roomRegistry.room(currentRoomId);
         this.grid = createGrid(room);
-        RoomDefinition.SpawnPoint playerSpawn = findSpawn(DEFAULT_PLAYER_SPAWN_ID, 96.0f, 160.0f);
+        RoomDefinition.SpawnPoint playerSpawn = findSpawn(gameManifest.defaultSpawnId(), 96.0f, 160.0f);
         this.player = new KinematicBody(playerSpawn.x(), playerSpawn.y(), 18.0f, 38.0f);
         PlayerControllerConfig createdPlayerConfig = PlayerControllerConfig.metroidvaniaDefaults();
         this.playerImpulseConfig = new KinematicImpulseConfig(
@@ -439,7 +442,10 @@ final class TestRoomScene implements Scene {
     }
 
     private void loadCheckpointSave() {
-        FileHandle saveFile = Gdx.files.local(SAMPLE_SAVE_PATH);
+        if (!gameManifest.savePolicy().enabled()) {
+            return;
+        }
+        FileHandle saveFile = Gdx.files.local(savePath());
         if (!saveFile.exists()) {
             return;
         }
@@ -451,13 +457,16 @@ final class TestRoomScene implements Scene {
             worldFlagIds.addAll(saveGame.worldFlagIds());
             currentRoomId = saveGame.checkpointRoomId();
         } catch (RuntimeException exception) {
-            Gdx.app.error("Umbra2D", "Ignoring invalid sample save: " + SAMPLE_SAVE_PATH, exception);
+            Gdx.app.error(gameManifest.title(), "Ignoring invalid sample save: " + savePath(), exception);
         }
     }
 
     private void persistCheckpointSave() {
+        if (!gameManifest.savePolicy().enabled()) {
+            return;
+        }
         try {
-            FileHandle saveFile = Gdx.files.local(SAMPLE_SAVE_PATH);
+            FileHandle saveFile = Gdx.files.local(savePath());
             saveFile.parent().mkdirs();
             SaveGame saveGame = new SaveGame(
                     SaveGame.CURRENT_VERSION,
@@ -469,8 +478,12 @@ final class TestRoomScene implements Scene {
             );
             saveFile.writeString(saveGameCodec.encode(saveGame), false, StandardCharsets.UTF_8.name());
         } catch (RuntimeException exception) {
-            Gdx.app.error("Umbra2D", "Failed to write sample save: " + SAMPLE_SAVE_PATH, exception);
+            Gdx.app.error(gameManifest.title(), "Failed to write sample save: " + savePath(), exception);
         }
+    }
+
+    private String savePath() {
+        return gameManifest.savePolicy().path();
     }
 
     private void updateDoorTransitions() {
@@ -1190,6 +1203,17 @@ final class TestRoomScene implements Scene {
         }
     }
 
+    private GameManifest loadGameManifest(String resourcePath) {
+        try (InputStreamReader reader = new InputStreamReader(
+                Objects.requireNonNull(TestRoomScene.class.getResourceAsStream(resourcePath)),
+                StandardCharsets.UTF_8
+        )) {
+            return new GameManifestLoader().load(reader);
+        } catch (IOException exception) {
+            throw new IllegalStateException("failed to close game manifest resource: " + resourcePath, exception);
+        }
+    }
+
     private BossDefinition loadBossDefinition(String resourcePath) {
         try (InputStreamReader reader = new InputStreamReader(
                 Objects.requireNonNull(TestRoomScene.class.getResourceAsStream(resourcePath)),
@@ -1886,7 +1910,7 @@ final class TestRoomScene implements Scene {
     }
 
     private void loadExternalSprites() {
-        Path assetRoot = Path.of(System.getProperty("umbra.assets.root", "../assets")).toAbsolutePath().normalize();
+        Path assetRoot = Path.of(System.getProperty("umbra.assets.root", gameManifest.assetRoot())).toAbsolutePath().normalize();
         registerTextureIfPresent(PLAYER_IDLE_TEXTURE, assetRoot.resolve(Path.of(
                 "char",
                 "FreeKnight_v1",
@@ -2500,7 +2524,7 @@ final class TestRoomScene implements Scene {
     }
 
     private void drawHud() {
-        Gdx.graphics.setTitle("Umbra2D | " + room.roomId()
+        Gdx.graphics.setTitle(gameManifest.title() + " | " + room.roomId()
                 + " | checkpoint=" + checkpointState.roomId() + ":" + checkpointState.spawnId()
                 + " | visited=" + visitedRoomIds.size()
                 + " | " + state

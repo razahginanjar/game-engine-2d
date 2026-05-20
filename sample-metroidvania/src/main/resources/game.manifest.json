@@ -1,0 +1,19 @@
+{
+  "title": "Umbra2D Sample Metroidvania",
+  "start_room_id": "forest_test_01",
+  "default_spawn_id": "entry_left",
+  "asset_root": "../assets",
+  "save": {
+    "enabled": true,
+    "path": ".umbra2d/sample-save.json"
+  },
+  "enabled_modules": [
+    "room",
+    "animation",
+    "ai",
+    "combat",
+    "boss",
+    "progression",
+    "save"
+  ]
+}
