@@ -9,8 +9,8 @@
         "impaler_idle_02",
         "impaler_idle_03"
       ],
-      "frame_width": 640,
-      "frame_height": 265,
+      "frame_width": 360,
+      "frame_height": 149,
       "frame_count": 4,
       "fps": 6,
       "loop": true
@@ -25,8 +25,8 @@
         "impaler_move_04",
         "impaler_move_05"
       ],
-      "frame_width": 640,
-      "frame_height": 265,
+      "frame_width": 360,
+      "frame_height": 149,
       "frame_count": 6,
       "fps": 8,
       "loop": true
@@ -60,8 +60,8 @@
         "impaler_attack1_23",
         "impaler_attack1_24"
       ],
-      "frame_width": 6400,
-      "frame_height": 2650,
+      "frame_width": 360,
+      "frame_height": 149,
       "frame_count": 25,
       "fps": 12,
       "loop": false
@@ -78,8 +78,8 @@
         "impaler_attack2_06",
         "impaler_attack2_07"
       ],
-      "frame_width": 6400,
-      "frame_height": 2650,
+      "frame_width": 360,
+      "frame_height": 149,
       "frame_count": 8,
       "fps": 10,
       "loop": false
@@ -109,8 +109,8 @@
         "impaler_attack3_19",
         "impaler_attack3_20"
       ],
-      "frame_width": 6400,
-      "frame_height": 2650,
+      "frame_width": 360,
+      "frame_height": 149,
       "frame_count": 21,
       "fps": 12,
       "loop": false
@@ -145,8 +145,8 @@
         "impaler_attack4_24",
         "impaler_attack4_25"
       ],
-      "frame_width": 6400,
-      "frame_height": 2650,
+      "frame_width": 360,
+      "frame_height": 149,
       "frame_count": 26,
       "fps": 13,
       "loop": false
@@ -184,8 +184,8 @@
         "impaler_attack5_27",
         "impaler_attack5_28"
       ],
-      "frame_width": 6400,
-      "frame_height": 2650,
+      "frame_width": 360,
+      "frame_height": 149,
       "frame_count": 29,
       "fps": 14,
       "loop": false
@@ -214,8 +214,8 @@
         "impaler_attack6_18",
         "impaler_attack6_19"
       ],
-      "frame_width": 6400,
-      "frame_height": 2650,
+      "frame_width": 360,
+      "frame_height": 149,
       "frame_count": 20,
       "fps": 14,
       "loop": false
@@ -249,8 +249,8 @@
         "impaler_death_23",
         "impaler_death_24"
       ],
-      "frame_width": 6400,
-      "frame_height": 2650,
+      "frame_width": 360,
+      "frame_height": 149,
       "frame_count": 25,
       "fps": 12,
       "loop": false

@@ -4,6 +4,7 @@ import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Input;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.Camera;
+import com.badlogic.gdx.graphics.Pixmap;
 import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.BitmapFont;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
@@ -82,14 +83,22 @@ import umbra.save.SaveGameCodec;
 
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.awt.Graphics2D;
+import java.awt.RenderingHints;
+import java.awt.image.BufferedImage;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import javax.imageio.ImageIO;
+import javax.imageio.ImageReadParam;
+import javax.imageio.ImageReader;
+import javax.imageio.stream.ImageInputStream;
 
 final class TestRoomScene implements Scene {
     private static final int PLAYER_ENTITY_ID = 1;
@@ -126,6 +135,8 @@ final class TestRoomScene implements Scene {
     private static final float PLAYER_SPRITE_OFFSET_Y = 0.0f;
     private static final String SLIME_TEXTURE_PREFIX = "slime_green_";
     private static final String IMPALER_TEXTURE_PREFIX = "impaler_";
+    private static final int IMPALER_TEXTURE_WIDTH = 360;
+    private static final int IMPALER_TEXTURE_HEIGHT = 149;
     private static final float EDITOR_BUTTON_X = 12.0f;
     private static final float EDITOR_BUTTON_TOP_Y = 12.0f;
     private static final float EDITOR_BUTTON_WIDTH = 132.0f;
@@ -1915,6 +1926,59 @@ final class TestRoomScene implements Scene {
         }
     }
 
+    private void registerScaledTextureIfPresent(String textureId, Path texturePath, int targetWidth, int targetHeight) {
+        FileHandle file = Gdx.files.absolute(texturePath.toString());
+        if (!file.exists()) {
+            return;
+        }
+        try {
+            spriteRenderer.registerTexture(textureId, loadScaledTexture(texturePath, targetWidth, targetHeight));
+        } catch (IOException exception) {
+            spriteRenderer.registerTexture(textureId, new Texture(file));
+        }
+    }
+
+    private Texture loadScaledTexture(Path texturePath, int targetWidth, int targetHeight) throws IOException {
+        BufferedImage source = readSubsampledImage(texturePath, targetWidth, targetHeight);
+        BufferedImage scaled = new BufferedImage(targetWidth, targetHeight, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D graphics = scaled.createGraphics();
+        graphics.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
+        graphics.setRenderingHint(RenderingHints.KEY_ALPHA_INTERPOLATION, RenderingHints.VALUE_ALPHA_INTERPOLATION_SPEED);
+        graphics.drawImage(source, 0, 0, targetWidth, targetHeight, null);
+        graphics.dispose();
+
+        Pixmap pixmap = new Pixmap(targetWidth, targetHeight, Pixmap.Format.RGBA8888);
+        for (int y = 0; y < targetHeight; y++) {
+            for (int x = 0; x < targetWidth; x++) {
+                int argb = scaled.getRGB(x, y);
+                int rgba = ((argb << 8) & 0xFFFFFF00) | ((argb >>> 24) & 0xFF);
+                pixmap.drawPixel(x, y, rgba);
+            }
+        }
+        Texture texture = new Texture(pixmap);
+        pixmap.dispose();
+        return texture;
+    }
+
+    private BufferedImage readSubsampledImage(Path texturePath, int targetWidth, int targetHeight) throws IOException {
+        Iterator<ImageReader> readers = ImageIO.getImageReadersByFormatName("png");
+        if (!readers.hasNext()) {
+            throw new IOException("No PNG reader available");
+        }
+        ImageReader reader = readers.next();
+        try (ImageInputStream input = ImageIO.createImageInputStream(texturePath.toFile())) {
+            reader.setInput(input, true, true);
+            int sourceWidth = reader.getWidth(0);
+            int sourceHeight = reader.getHeight(0);
+            int subsample = Math.max(1, Math.min(sourceWidth / targetWidth, sourceHeight / targetHeight));
+            ImageReadParam param = reader.getDefaultReadParam();
+            param.setSourceSubsampling(subsample, subsample, 0, 0);
+            return reader.read(0, param);
+        } finally {
+            reader.dispose();
+        }
+    }
+
     private void registerFantasyMonsterSheet(Path assetRoot, String textureId, String creatureFolder, String fileName) {
         registerTextureIfPresent(textureId, assetRoot.resolve(Path.of(
                 "monster",
@@ -1939,9 +2003,11 @@ final class TestRoomScene implements Scene {
                 assetClipFolder
         ));
         for (int frame = 0; frame < frameCount; frame++) {
-            registerTextureIfPresent(
+            registerScaledTextureIfPresent(
                     impalerTextureId(clipId, frame),
-                    clipRoot.resolve(assetFramePrefix + (frame + 1) + ".png")
+                    clipRoot.resolve(assetFramePrefix + (frame + 1) + ".png"),
+                    IMPALER_TEXTURE_WIDTH,
+                    IMPALER_TEXTURE_HEIGHT
             );
         }
     }
