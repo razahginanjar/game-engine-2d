@@ -3,14 +3,20 @@ package umbra.project;
 import umbra.animation.AnimationClipDefinition;
 import umbra.animation.AnimationMetadataLoader;
 import umbra.animation.AnimationSetDefinition;
+import umbra.boss.BossDefinition;
+import umbra.boss.BossDefinitionLoader;
+import umbra.room.RoomDefinition;
+import umbra.room.RoomLoader;
 
 import java.io.IOException;
 import java.io.Reader;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
@@ -32,6 +38,8 @@ public final class ProjectValidator {
     private final GameManifestLoader manifestLoader = new GameManifestLoader();
     private final CreatureDefinitionLoader creatureLoader = new CreatureDefinitionLoader();
     private final RoomVisualDefinitionLoader roomVisualLoader = new RoomVisualDefinitionLoader();
+    private final RoomLoader roomLoader = new RoomLoader();
+    private final BossDefinitionLoader bossLoader = new BossDefinitionLoader();
 
     public ProjectValidationReport validate(Path projectRoot, String manifestPath) {
         Path absoluteRoot = projectRoot.toAbsolutePath().normalize();
@@ -47,8 +55,11 @@ public final class ProjectValidator {
         validateAssetRoot(absoluteRoot, manifest, issues);
         validateSavePolicy(absoluteRoot, manifest, issues);
         validateEnabledModules(manifest, issues);
+        Map<String, RoomDefinition> rooms = validateRoomDefinitions(absoluteRoot, manifest, issues);
+        Set<String> bossIds = validateBossDefinitions(absoluteRoot, manifest, issues);
+        validateBossArenaReferences(rooms, bossIds, issues);
         validateCreatureDefinitions(absoluteRoot, manifest, issues);
-        validateRoomVisualDefinitions(absoluteRoot, manifest, issues);
+        validateRoomVisualDefinitions(absoluteRoot, manifest, rooms.keySet(), issues);
         return new ProjectValidationReport(Optional.of(manifest), issues);
     }
 
@@ -83,6 +94,109 @@ public final class ProjectValidator {
         for (String module : manifest.enabledModules()) {
             if (!KNOWN_MODULES.contains(module)) {
                 issues.add(error("module.unknown", "enabled_modules contains unknown module: " + module));
+            }
+        }
+    }
+
+    private Map<String, RoomDefinition> validateRoomDefinitions(
+            Path projectRoot,
+            GameManifest manifest,
+            List<ProjectValidationIssue> issues
+    ) {
+        Map<String, RoomDefinition> rooms = new HashMap<>();
+        for (String definitionPath : manifest.roomDefinitions()) {
+            RoomDefinition room;
+            try {
+                room = loadRoom(projectRoot, definitionPath);
+            } catch (RuntimeException exception) {
+                issues.add(error("room.invalid", "invalid room definition " + definitionPath + ": " + exception.getMessage()));
+                continue;
+            }
+            RoomDefinition previous = rooms.put(room.roomId(), room);
+            if (previous != null) {
+                issues.add(error("room.duplicate_id", "duplicate room id: " + room.roomId()));
+            }
+        }
+        if (!rooms.isEmpty()) {
+            validateStartRoom(manifest, rooms, issues);
+            validateDoorTargets(rooms, issues);
+        }
+        return rooms;
+    }
+
+    private void validateStartRoom(
+            GameManifest manifest,
+            Map<String, RoomDefinition> rooms,
+            List<ProjectValidationIssue> issues
+    ) {
+        RoomDefinition startRoom = rooms.get(manifest.startRoomId());
+        if (startRoom == null) {
+            issues.add(error("manifest.start_room.missing",
+                    "start_room_id is not listed in room_definitions: " + manifest.startRoomId()));
+            return;
+        }
+        boolean hasDefaultSpawn = startRoom.spawns().stream()
+                .anyMatch(spawn -> spawn.id().equals(manifest.defaultSpawnId()));
+        if (!hasDefaultSpawn) {
+            issues.add(error("manifest.default_spawn.missing",
+                    "default_spawn_id is missing from start room: " + manifest.defaultSpawnId()));
+        }
+    }
+
+    private void validateDoorTargets(Map<String, RoomDefinition> rooms, List<ProjectValidationIssue> issues) {
+        for (RoomDefinition room : rooms.values()) {
+            for (RoomDefinition.DoorDefinition door : room.doors()) {
+                if ("self".equals(door.targetRoom())) {
+                    continue;
+                }
+                RoomDefinition targetRoom = rooms.get(door.targetRoom());
+                if (targetRoom == null) {
+                    issues.add(error("room.door.target_room_missing",
+                            "door targets room not listed in room_definitions: " + room.roomId() + "." + door.id()));
+                    continue;
+                }
+                boolean hasTargetSpawn = targetRoom.spawns().stream()
+                        .anyMatch(spawn -> spawn.id().equals(door.targetSpawn()));
+                if (!hasTargetSpawn) {
+                    issues.add(error("room.door.target_spawn_missing",
+                            "door targets missing spawn: " + room.roomId() + "." + door.id()
+                                    + " -> " + door.targetRoom() + "." + door.targetSpawn()));
+                }
+            }
+        }
+    }
+
+    private Set<String> validateBossDefinitions(Path projectRoot, GameManifest manifest, List<ProjectValidationIssue> issues) {
+        Set<String> bossIds = new HashSet<>();
+        for (String definitionPath : manifest.bossDefinitions()) {
+            BossDefinition boss;
+            try {
+                boss = loadBoss(projectRoot, definitionPath);
+            } catch (RuntimeException exception) {
+                issues.add(error("boss.invalid", "invalid boss definition " + definitionPath + ": " + exception.getMessage()));
+                continue;
+            }
+            if (!bossIds.add(boss.id())) {
+                issues.add(error("boss.duplicate_id", "duplicate boss id: " + boss.id()));
+            }
+        }
+        return bossIds;
+    }
+
+    private void validateBossArenaReferences(
+            Map<String, RoomDefinition> rooms,
+            Set<String> bossIds,
+            List<ProjectValidationIssue> issues
+    ) {
+        if (rooms.isEmpty() || bossIds.isEmpty()) {
+            return;
+        }
+        for (RoomDefinition room : rooms.values()) {
+            for (RoomDefinition.BossArenaDefinition arena : room.bossArenas()) {
+                if (!bossIds.contains(arena.bossId())) {
+                    issues.add(error("room.boss_arena.boss_missing",
+                            "boss arena references boss not listed in boss_definitions: " + room.roomId() + "." + arena.id()));
+                }
             }
         }
     }
@@ -188,9 +302,14 @@ public final class ProjectValidator {
         }
     }
 
-    private void validateRoomVisualDefinitions(Path projectRoot, GameManifest manifest, List<ProjectValidationIssue> issues) {
+    private void validateRoomVisualDefinitions(
+            Path projectRoot,
+            GameManifest manifest,
+            Set<String> knownRoomIds,
+            List<ProjectValidationIssue> issues
+    ) {
         Path approvedAssetRoot = projectRoot.resolve(manifest.assetRoot()).normalize();
-        Set<String> roomIds = new HashSet<>();
+        Set<String> visualRoomIds = new HashSet<>();
         for (String definitionPath : manifest.roomVisualDefinitions()) {
             RoomVisualDefinition visual;
             try {
@@ -200,8 +319,12 @@ public final class ProjectValidator {
                         "invalid room visual definition " + definitionPath + ": " + exception.getMessage()));
                 continue;
             }
-            if (!roomIds.add(visual.roomId())) {
+            if (!visualRoomIds.add(visual.roomId())) {
                 issues.add(error("room_visual.duplicate_room", "duplicate room visual definition: " + visual.roomId()));
+            }
+            if (!knownRoomIds.isEmpty() && !knownRoomIds.contains(visual.roomId())) {
+                issues.add(error("room_visual.room_missing",
+                        "room visual references room not listed in room_definitions: " + visual.roomId()));
             }
             validateRoomVisualAssets(approvedAssetRoot, visual, issues);
         }
@@ -232,5 +355,29 @@ public final class ProjectValidator {
 
     private static ProjectValidationIssue warning(String code, String message) {
         return new ProjectValidationIssue(ProjectValidationSeverity.WARNING, code, message);
+    }
+
+    private RoomDefinition loadRoom(Path projectRoot, String relativePath) {
+        Path roomPath = projectRoot.resolve(relativePath).normalize();
+        if (!roomPath.startsWith(projectRoot)) {
+            throw new GameManifestValidationException("room definition escapes project root: " + relativePath);
+        }
+        try (Reader reader = Files.newBufferedReader(roomPath)) {
+            return roomLoader.load(reader);
+        } catch (IOException exception) {
+            throw new GameManifestValidationException("failed to read room definition: " + relativePath, exception);
+        }
+    }
+
+    private BossDefinition loadBoss(Path projectRoot, String relativePath) {
+        Path bossPath = projectRoot.resolve(relativePath).normalize();
+        if (!bossPath.startsWith(projectRoot)) {
+            throw new GameManifestValidationException("boss definition escapes project root: " + relativePath);
+        }
+        try (Reader reader = Files.newBufferedReader(bossPath)) {
+            return bossLoader.load(reader);
+        } catch (IOException exception) {
+            throw new GameManifestValidationException("failed to read boss definition: " + relativePath, exception);
+        }
     }
 }

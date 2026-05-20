@@ -44,6 +44,12 @@ final class GameManifestLoaderTest {
                   ],
                   "room_visual_definitions": [
                     "metadata/room_visuals/forest_test_01.visual.json"
+                  ],
+                  "room_definitions": [
+                    "rooms/forest_test_01.json"
+                  ],
+                  "boss_definitions": [
+                    "metadata/bosses/impaler.boss.json"
                   ]
                 }
                 """));
@@ -57,6 +63,8 @@ final class GameManifestLoaderTest {
                 manifest.enabledModules());
         assertEquals(List.of("metadata/creatures/goblin.creature.json"), manifest.creatureDefinitions());
         assertEquals(List.of("metadata/room_visuals/forest_test_01.visual.json"), manifest.roomVisualDefinitions());
+        assertEquals(List.of("rooms/forest_test_01.json"), manifest.roomDefinitions());
+        assertEquals(List.of("metadata/bosses/impaler.boss.json"), manifest.bossDefinitions());
     }
 
     @Test

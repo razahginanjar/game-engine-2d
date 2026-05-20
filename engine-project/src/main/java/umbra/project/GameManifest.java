@@ -10,7 +10,9 @@ public record GameManifest(
         SavePolicy savePolicy,
         List<String> enabledModules,
         List<String> creatureDefinitions,
-        List<String> roomVisualDefinitions
+        List<String> roomVisualDefinitions,
+        List<String> roomDefinitions,
+        List<String> bossDefinitions
 ) {
     public GameManifest {
         requireText("title", title);
@@ -37,6 +39,14 @@ public record GameManifest(
         roomVisualDefinitions = roomVisualDefinitions == null ? List.of() : List.copyOf(roomVisualDefinitions);
         for (String definitionPath : roomVisualDefinitions) {
             requireProjectRelativePath("room visual definition path", definitionPath);
+        }
+        roomDefinitions = roomDefinitions == null ? List.of() : List.copyOf(roomDefinitions);
+        for (String definitionPath : roomDefinitions) {
+            requireProjectRelativePath("room definition path", definitionPath);
+        }
+        bossDefinitions = bossDefinitions == null ? List.of() : List.copyOf(bossDefinitions);
+        for (String definitionPath : bossDefinitions) {
+            requireProjectRelativePath("boss definition path", definitionPath);
         }
     }
 

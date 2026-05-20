@@ -22,11 +22,13 @@ final class ProjectValidatorTest {
         Files.createDirectories(projectRoot.resolve("metadata/creatures"));
         Files.createDirectories(projectRoot.resolve("metadata/animations"));
         Files.createDirectories(projectRoot.resolve("metadata/room_visuals"));
+        Files.createDirectories(projectRoot.resolve("rooms"));
         Files.createDirectories(projectRoot.resolve("assets/background/sky"));
         Files.writeString(projectRoot.resolve("assets/background/sky/1.png"), "fake-png");
         writeAnimation("metadata/animations/goblin.anim.json", true);
         writeCreature("metadata/creatures/goblin.creature.json", "metadata/animations/goblin.anim.json");
         writeRoomVisual("metadata/room_visuals/forest_test_01.visual.json", "background/sky/1.png");
+        writeRoom("rooms/forest_test_01.json", "forest_test_01", "entry_left", true, "");
         writeManifest("""
                 {
                   "title": "Umbra2D Sample Metroidvania",
@@ -38,6 +40,7 @@ final class ProjectValidatorTest {
                     "path": ".umbra2d/sample-save.json"
                   },
                   "enabled_modules": ["room", "animation", "ai", "combat", "boss", "progression", "save"],
+                  "room_definitions": ["rooms/forest_test_01.json"],
                   "creature_definitions": ["metadata/creatures/goblin.creature.json"],
                   "room_visual_definitions": ["metadata/room_visuals/forest_test_01.visual.json"]
                 }
@@ -82,6 +85,69 @@ final class ProjectValidatorTest {
         ProjectValidationReport report = validator.validate(projectRoot, "game.manifest.json");
 
         assertEquals("creature.attack.missing_active_event", report.errors().get(0).code());
+    }
+
+    @Test
+    void reportsMissingStartRoomDefinition() throws IOException {
+        Files.createDirectories(projectRoot.resolve("assets"));
+        Files.createDirectories(projectRoot.resolve("rooms"));
+        writeRoom("rooms/forest_test_02.json", "forest_test_02", "entry_left", true, "");
+        writeManifestWithRoom("rooms/forest_test_02.json");
+
+        ProjectValidationReport report = validator.validate(projectRoot, "game.manifest.json");
+
+        assertEquals("manifest.start_room.missing", report.errors().get(0).code());
+    }
+
+    @Test
+    void reportsMissingDoorTargetRoom() throws IOException {
+        Files.createDirectories(projectRoot.resolve("assets"));
+        Files.createDirectories(projectRoot.resolve("rooms"));
+        writeRoom("rooms/forest_test_01.json", "forest_test_01", "entry_left", false, """
+                  "doors": [
+                    { "id": "right_exit", "x": 100, "y": 32, "w": 8, "h": 32, "target_room": "forest_test_02", "target_spawn": "entry_left" }
+                  ],
+                """);
+        writeManifestWithRoom("rooms/forest_test_01.json");
+
+        ProjectValidationReport report = validator.validate(projectRoot, "game.manifest.json");
+
+        assertEquals("room.door.target_room_missing", report.errors().get(0).code());
+    }
+
+    @Test
+    void reportsBossArenaMissingBossDefinition() throws IOException {
+        Files.createDirectories(projectRoot.resolve("assets"));
+        Files.createDirectories(projectRoot.resolve("rooms"));
+        Files.createDirectories(projectRoot.resolve("metadata/bosses"));
+        writeBoss("metadata/bosses/impaler.boss.json", "impaler");
+        writeRoom("rooms/forest_test_01.json", "forest_test_01", "entry_left", true, """
+                  "boss_arenas": [
+                    {
+                      "id": "arena_01",
+                      "boss_id": "missing_boss",
+                      "defeat_flag_id": "missing_boss_defeated",
+                      "arena": { "x": 0, "y": 0, "w": 128, "h": 128 },
+                      "activation": { "x": 16, "y": 16, "w": 64, "h": 64 },
+                      "locked_door_ids": []
+                    }
+                  ],
+                """);
+        writeManifest("""
+                {
+                  "title": "Umbra2D Sample Metroidvania",
+                  "start_room_id": "forest_test_01",
+                  "default_spawn_id": "entry_left",
+                  "asset_root": "assets",
+                  "enabled_modules": ["room", "boss"],
+                  "room_definitions": ["rooms/forest_test_01.json"],
+                  "boss_definitions": ["metadata/bosses/impaler.boss.json"]
+                }
+                """);
+
+        ProjectValidationReport report = validator.validate(projectRoot, "game.manifest.json");
+
+        assertEquals("room.boss_arena.boss_missing", report.errors().get(0).code());
     }
 
     @Test
@@ -195,6 +261,19 @@ final class ProjectValidatorTest {
                   "room_visual_definitions": ["%s"]
                 }
                 """.formatted(roomVisualDefinitionPath));
+    }
+
+    private void writeManifestWithRoom(String roomDefinitionPath) throws IOException {
+        writeManifest("""
+                {
+                  "title": "Umbra2D Sample Metroidvania",
+                  "start_room_id": "forest_test_01",
+                  "default_spawn_id": "entry_left",
+                  "asset_root": "assets",
+                  "enabled_modules": ["room"],
+                  "room_definitions": ["%s"]
+                }
+                """.formatted(roomDefinitionPath));
     }
 
     private void writeCreature(String path, String animationPath) throws IOException {
@@ -331,5 +410,66 @@ final class ProjectValidatorTest {
                   ]
                 }
                 """.formatted(assetPath));
+    }
+
+    private void writeRoom(
+            String path,
+            String roomId,
+            String spawnId,
+            boolean isolated,
+            String extraFields
+    ) throws IOException {
+        Files.writeString(projectRoot.resolve(path), """
+                {
+                  "room_id": "%s",
+                  "biome_id": "forest",
+                  "width_tiles": 4,
+                  "height_tiles": 4,
+                  "tile_size": 32,
+                  "isolated": %s,
+                %s  "solid_tiles": [[0, 0]],
+                  "spawns": [
+                    { "id": "%s", "type": "player_spawn", "x": 32, "y": 32 }
+                  ]
+                }
+                """.formatted(roomId, isolated, extraFields, spawnId));
+    }
+
+    private void writeBoss(String path, String bossId) throws IOException {
+        Files.writeString(projectRoot.resolve(path), """
+                {
+                  "id": "%s",
+                  "display_name": "Impaler",
+                  "max_health": 10,
+                  "phases": [
+                    { "id": "phase_1", "starts_at_health_ratio": 1.0 }
+                  ],
+                  "attacks": [
+                    {
+                      "id": "stab",
+                      "phase_id": "phase_1",
+                      "clip_id": "attack1",
+                      "hitbox_profile": "stab",
+                      "min_range": 0,
+                      "max_range": 64,
+                      "cooldown_seconds": 1.0,
+                      "frame_count": 1,
+                      "fps": 10,
+                      "damage": 1,
+                      "knockback_x": 120,
+                      "knockback_y": 40,
+                      "hit_pause_seconds": 0.05,
+                      "hit_stun_seconds": 0.20,
+                      "hitbox_windows": [
+                        {
+                          "start_frame": 1,
+                          "end_frame": 1,
+                          "shapes": [{ "type": "facing_body" }]
+                        }
+                      ]
+                    }
+                  ]
+                }
+                """.formatted(bossId));
     }
 }

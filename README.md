@@ -128,6 +128,7 @@ Implemented first because it blocks every later gameplay feature:
 - Checkpoint and visited-room save data is serialized by `engine-save` and loaded on sample startup from `.umbra2d/sample-save.json`.
 - Ability unlock state is handled by `engine-progression` and serialized by `engine-save`; the sample dash and double-jump pickups persist across restart and gates read that state.
 - The sample reads `sample-metroidvania/src/main/resources/game.manifest.json` for project title, startup room, default spawn, asset root, save policy, and enabled engine modules.
+- The project validator checks registered room definitions, start room/default spawn references, room door targets, boss definitions, and boss arena boss references before launch.
 - Creature authoring data exists for slime, goblin, flying eye, skeleton, and mushroom under `sample-metroidvania/src/main/resources/metadata/creatures`; validation checks their state mappings against animation metadata before launch.
 - Room visual authoring data exists under `sample-metroidvania/src/main/resources/metadata/room_visuals`; validation checks layer settings, parallax/repeat/tint values, and approved background asset paths before launch.
 - Graybox combat sample with player slash, multiple moving enemies, anchored hitbox movement, contact damage, knockback, HP state, hit pause, hit stun, active hitbox debug, enemy hurtboxes, and reset.

@@ -36,7 +36,9 @@ public final class GameManifestLoader {
                 readSavePolicy(root),
                 readEnabledModules(root),
                 readOptionalStringArray(root, "creature_definitions"),
-                readOptionalStringArray(root, "room_visual_definitions")
+                readOptionalStringArray(root, "room_visual_definitions"),
+                readOptionalStringArray(root, "room_definitions"),
+                readOptionalStringArray(root, "boss_definitions")
         );
     }
 

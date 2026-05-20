@@ -16,6 +16,14 @@
     "progression",
     "save"
   ],
+  "room_definitions": [
+    "sample-metroidvania/src/main/resources/rooms/forest_test_01.json",
+    "sample-metroidvania/src/main/resources/rooms/forest_test_02.json",
+    "sample-metroidvania/src/main/resources/rooms/forest_boss_01.json"
+  ],
+  "boss_definitions": [
+    "sample-metroidvania/src/main/resources/metadata/bosses/impaler.boss.json"
+  ],
   "creature_definitions": [
     "sample-metroidvania/src/main/resources/metadata/creatures/slime.creature.json",
     "sample-metroidvania/src/main/resources/metadata/creatures/goblin.creature.json",
