@@ -184,21 +184,22 @@ final class TestRoomScene implements Scene {
     private final AttackTimelinePlayer attackTimeline = new AttackTimelinePlayer();
     private final AttackTimelinePlayer bossAttackTimeline = new AttackTimelinePlayer();
     private final BossAttackSelector bossAttackSelector = new BossAttackSelector();
-    private final List<BossAttackPattern> bossAttackPatterns = List.of(
-            new BossAttackPattern("impaler_stab", "phase_1", 0.0f, 72.0f, 1.05f),
-            new BossAttackPattern("impaler_sweep", "phase_2", 0.0f, 72.0f, 0.76f)
+    private final List<BossAttackMove> bossAttackMoves = List.of(
+            bossAttackMove("impaler_stab", "phase_1", "attack2", 0.0f, 72.0f, 0.82f, 8, 10.0f, 1),
+            bossAttackMove("impaler_ground_sweep", "phase_1", "attack1", 0.0f, 104.0f, 1.18f, 25, 12.0f, 1),
+            bossAttackMove("impaler_delayed_cross", "phase_1", "attack3", 0.0f, 88.0f, 1.08f, 21, 12.0f, 1),
+            bossAttackMove("impaler_long_lunge", "phase_2", "attack4", 24.0f, 156.0f, 0.72f, 26, 13.0f, 1),
+            bossAttackMove("impaler_shadow_chain", "phase_2", "attack5", 0.0f, 132.0f, 0.94f, 29, 14.0f, 1),
+            bossAttackMove("impaler_finisher", "phase_2", "attack6", 0.0f, 96.0f, 1.65f, 20, 14.0f, 2)
     );
+    private final List<BossAttackPattern> bossAttackPatterns = bossAttackMoves.stream()
+            .map(BossAttackMove::pattern)
+            .toList();
     private final AttackTimelineDefinition slashTimeline = new AttackTimelineDefinition(
             new AttackDefinition("player_slash_01", 1, 160.0f, 40.0f, 0.045f, 0.18f, "slash"),
             0.06f,
             0.10f,
             0.18f
-    );
-    private final AttackTimelineDefinition bossAttackTimelineDefinition = new AttackTimelineDefinition(
-            new AttackDefinition("impaler_spear", 1, 180.0f, 70.0f, 0.05f, 0.24f, "boss_spear"),
-            0.26f,
-            0.18f,
-            0.36f
     );
     private final AttackDefinition enemyContactAttack = new AttackDefinition(
             "enemy_contact",
@@ -228,12 +229,46 @@ final class TestRoomScene implements Scene {
     private BossActor boss;
     private BossArenaController bossArenaController;
     private BossArenaStatus bossArenaStatus;
+    private BossAttackMove currentBossAttackMove;
     private final List<HitboxInstance> currentBossAttackHitboxes = new ArrayList<>();
     private float deathRespawnSeconds;
     private float roomTransitionLockoutSeconds;
     private float playerDashSeconds;
     private float playerDashCooldownSeconds;
     private int playerDashDirection = 1;
+
+    private static BossAttackMove bossAttackMove(
+            String id,
+            String phaseId,
+            String clipId,
+            float minRange,
+            float maxRange,
+            float cooldownSeconds,
+            int frameCount,
+            float fps,
+            int damage
+    ) {
+        AttackDefinition attack = new AttackDefinition(
+                id,
+                damage,
+                180.0f + damage * 40.0f,
+                70.0f,
+                0.05f + damage * 0.015f,
+                0.20f + damage * 0.05f,
+                "boss_spear"
+        );
+        AttackTimelineDefinition timeline = new AttackTimelineDefinition(
+                attack,
+                0.0f,
+                frameCount / fps,
+                0.08f
+        );
+        return new BossAttackMove(
+                new BossAttackPattern(id, phaseId, minRange, maxRange, cooldownSeconds),
+                clipId,
+                timeline
+        );
+    }
 
     TestRoomScene(SpriteBatch spriteBatch, ShapeRenderer shapes, Camera camera, EngineConfig config) {
         this.batch = spriteBatch;
@@ -255,7 +290,7 @@ final class TestRoomScene implements Scene {
         this.mushroomAnimationSet = loadAnimationSet("/metadata/mushroom.anim.json",
                 List.of("move", "idle", "attack", "take_hit", "death"));
         this.impalerAnimationSet = loadAnimationSet("/metadata/impaler.anim.json",
-                List.of("idle", "move", "attack", "death"));
+                List.of("idle", "move", "attack1", "attack2", "attack3", "attack4", "attack5", "attack6", "death"));
         loadExternalSprites();
         this.roomRegistry = loadRoomRegistry();
         visitedRoomIds.add(START_ROOM_ID);
@@ -620,6 +655,7 @@ final class TestRoomScene implements Scene {
         playerHitStunTimer.reset();
         currentAttackHitbox = null;
         currentBossAttackHitboxes.clear();
+        currentBossAttackMove = null;
         attackTimeline.reset();
         bossAttackTimeline.reset();
         bossAttackSelector.reset();
@@ -735,6 +771,7 @@ final class TestRoomScene implements Scene {
         bossArenaController = null;
         bossArenaStatus = null;
         currentBossAttackHitboxes.clear();
+        currentBossAttackMove = null;
         bossAttackTimeline.reset();
         bossAttackSelector.reset();
         if (room.bossArenas().isEmpty()) {
@@ -1060,8 +1097,8 @@ final class TestRoomScene implements Scene {
             }
             currentBossAttackHitboxes.clear();
             if (boss != null && !boss.health.defeated() && bossAttackActive()) {
-                currentBossAttackHitboxes.addAll(boss.createAttack2Hitboxes(
-                        bossAttackTimelineDefinition.attack(),
+                currentBossAttackHitboxes.addAll(boss.createAttackHitboxes(
+                        currentBossAttackMove,
                         boss.animator.frameIndex()
                 ));
                 enemyAttackHitboxes.addAll(currentBossAttackHitboxes);
@@ -1081,6 +1118,7 @@ final class TestRoomScene implements Scene {
         }
         if (bossAttackTimeline.phase() == AttackPhase.FINISHED) {
             currentBossAttackHitboxes.clear();
+            currentBossAttackMove = null;
         }
     }
 
@@ -1089,6 +1127,7 @@ final class TestRoomScene implements Scene {
             persistCheckpointSave();
         }
         currentBossAttackHitboxes.clear();
+        currentBossAttackMove = null;
         bossAttackTimeline.reset();
         updateBossArena();
     }
@@ -1109,9 +1148,9 @@ final class TestRoomScene implements Scene {
         return bossArenaStatus != null
                 && bossArenaStatus.active()
                 && clip != null
-                && clip.id().equals("attack")
-                && boss.animator.frameIndex() >= 1
-                && boss.animator.frameIndex() <= 6;
+                && currentBossAttackMove != null
+                && clip.id().equals(currentBossAttackMove.clipId())
+                && !boss.attackBounds(currentBossAttackMove, boss.animator.frameIndex()).isEmpty();
     }
 
     private EnemyActor findEnemy(int entityId) {
@@ -1185,9 +1224,10 @@ final class TestRoomScene implements Scene {
         boss.facingDirection = dx >= 0.0f ? 1 : -1;
 
         if (!bossAttackTimeline.acceptingNewAttack()) {
+            boss.updateAttackMovement(currentBossAttackMove, boss.animator.frameIndex(), bossArenaController.definition().arenaBounds());
             return;
         }
-        if (boss.attack2CanReach(player.bounds())) {
+        if (boss.canReachAnyAttack(player.bounds(), bossArenaStatus.phase().id(), bossAttackPatterns)) {
             Optional<BossAttackPattern> selectedAttack = bossAttackSelector.update(
                     bossArenaStatus.phase().id(),
                     edgeDistance,
@@ -1195,10 +1235,7 @@ final class TestRoomScene implements Scene {
                     deltaSeconds
             );
             if (selectedAttack.isPresent()) {
-                bossAttackTimeline.start(bossAttackTimelineDefinition);
-                currentBossAttackHitboxes.clear();
-                boss.animator.restart(boss.animationSet.clip("attack"));
-                boss.body.setVelocityX(0.0f);
+                startBossAttack(bossAttackMove(selectedAttack.get().id()));
                 return;
             }
             boss.body.setVelocityX(0.0f);
@@ -1208,6 +1245,24 @@ final class TestRoomScene implements Scene {
         float nextX = boss.body.x() + boss.facingDirection * speed * deltaSeconds;
         boss.body.setPosition(clampBossX(boss, nextX), boss.body.y());
         boss.body.setVelocityX(boss.facingDirection * speed);
+    }
+
+    private void startBossAttack(BossAttackMove attackMove) {
+        currentBossAttackMove = attackMove;
+        bossAttackTimeline.start(attackMove.timeline());
+        currentBossAttackHitboxes.clear();
+        boss.beginAttackMovement();
+        boss.animator.restart(boss.animationSet.clip(attackMove.clipId()));
+        boss.body.setVelocityX(0.0f);
+    }
+
+    private BossAttackMove bossAttackMove(String attackId) {
+        for (BossAttackMove move : bossAttackMoves) {
+            if (move.pattern().id().equals(attackId)) {
+                return move;
+            }
+        }
+        throw new IllegalArgumentException("unknown boss attack: " + attackId);
     }
 
     private float clampBossX(BossActor actor, float x) {
@@ -1388,8 +1443,8 @@ final class TestRoomScene implements Scene {
         if (boss.health.defeated()) {
             return boss.animationSet.clip("death");
         }
-        if (!bossAttackTimeline.acceptingNewAttack()) {
-            return boss.animationSet.clip("attack");
+        if (!bossAttackTimeline.acceptingNewAttack() && currentBossAttackMove != null) {
+            return boss.animationSet.clip(currentBossAttackMove.clipId());
         }
         if (bossArenaStatus != null && bossArenaStatus.active() && Math.abs(boss.body.velocityX()) > 0.01f) {
             return boss.animationSet.clip("move");
@@ -1632,7 +1687,7 @@ final class TestRoomScene implements Scene {
         if (boss != null) {
             debugGeometryBuilder.addAabb(drawList, boss.body.bounds(), BOSS_HURTBOX_COLOR);
             if (!boss.health.defeated() && bossAttackActive()) {
-                for (Aabb attackBounds : boss.attack2Bounds(boss.animator.frameIndex())) {
+                for (Aabb attackBounds : boss.attackBounds(currentBossAttackMove, boss.animator.frameIndex())) {
                     debugGeometryBuilder.addAabb(drawList, attackBounds, ATTACK_ACTIVE_COLOR);
                 }
             }
@@ -1833,7 +1888,12 @@ final class TestRoomScene implements Scene {
         registerFantasyMonsterSheet(assetRoot, "mushroom_death", "Mushroom", "Death-sheet.png");
         registerImpalerFrameSequence(assetRoot, "idle", "idle", "idle", 4);
         registerImpalerFrameSequence(assetRoot, "move", "walk", "walk", 6);
-        registerImpalerFrameSequence(assetRoot, "attack", "attack2", "atk", 8);
+        registerImpalerFrameSequence(assetRoot, "attack1", "attack1", "atk", 25);
+        registerImpalerFrameSequence(assetRoot, "attack2", "attack2", "atk", 8);
+        registerImpalerFrameSequence(assetRoot, "attack3", "attack3", "atk", 21);
+        registerImpalerFrameSequence(assetRoot, "attack4", "attack4", "atk", 26);
+        registerImpalerFrameSequence(assetRoot, "attack5", "attack5", "atk", 29);
+        registerImpalerFrameSequence(assetRoot, "attack6", "attack6", "atk", 20);
         registerImpalerFrameSequence(assetRoot, "death", "death", "dth", 25);
     }
 
@@ -1942,6 +2002,20 @@ final class TestRoomScene implements Scene {
     private record EditorButtonAction(EditorAction action, EnemyKind enemyKind) {
     }
 
+    private record BossAttackMove(
+            BossAttackPattern pattern,
+            String clipId,
+            AttackTimelineDefinition timeline
+    ) {
+        private BossAttackMove {
+            Objects.requireNonNull(pattern, "pattern must not be null");
+            if (clipId == null || clipId.isBlank()) {
+                throw new IllegalArgumentException("clipId must not be blank");
+            }
+            Objects.requireNonNull(timeline, "timeline must not be null");
+        }
+    }
+
     private enum EnemyMovement {
         GROUND_PATROL,
         FLYING_PATROL
@@ -1966,6 +2040,7 @@ final class TestRoomScene implements Scene {
         private final float drawOffsetY = -5.0f;
         private final DebugColor fallbackColor = new DebugColor(0.72f, 0.58f, 0.35f, 1.0f);
         private int facingDirection = -1;
+        private float attackStartX;
 
         private BossActor(String spawnId, float spawnX, float spawnY, AnimationSetDefinition animationSet) {
             this.body = new KinematicBody(spawnX, spawnY, 58.0f, 92.0f);
@@ -1990,10 +2065,45 @@ final class TestRoomScene implements Scene {
             return !facingRight();
         }
 
-        private boolean attack2CanReach(Aabb targetBounds) {
-            return targetInFacingDirection(targetBounds)
-                    && edgeDistanceTo(targetBounds) <= body.width() + BOSS_ATTACK_REACH_PADDING
-                    && verticalOverlap(body.bounds(), targetBounds);
+        private boolean canReachAnyAttack(Aabb targetBounds, String phaseId, List<BossAttackPattern> patterns) {
+            if (!targetInFacingDirection(targetBounds) || !verticalOverlap(body.bounds(), targetBounds)) {
+                return false;
+            }
+            float edgeDistance = edgeDistanceTo(targetBounds);
+            for (BossAttackPattern pattern : patterns) {
+                if (pattern.phaseId().equals(phaseId)
+                        && edgeDistance >= pattern.minRange()
+                        && edgeDistance <= pattern.maxRange() + BOSS_ATTACK_REACH_PADDING) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        private void beginAttackMovement() {
+            attackStartX = body.x();
+        }
+
+        private void updateAttackMovement(BossAttackMove attackMove, int frameIndex, Aabb arenaBounds) {
+            if (attackMove == null) {
+                return;
+            }
+            int frame = frameIndex + 1;
+            float targetX = body.x();
+            if (attackMove.clipId().equals("attack5")) {
+                targetX = frame >= 5 && frame < 17 ? attackStartX + facingDirection * 32.0f : attackStartX;
+            } else if (attackMove.clipId().equals("attack6")) {
+                if (frame <= 6) {
+                    targetX = attackStartX + facingDirection * 32.0f * (frame / 6.0f);
+                } else if (frame < 15) {
+                    targetX = attackStartX + facingDirection * 64.0f;
+                } else {
+                    targetX = attackStartX;
+                }
+            }
+            targetX = Math.max(arenaBounds.x(), Math.min(targetX, arenaBounds.right() - body.width()));
+            body.setPosition(targetX, body.y());
+            body.setVelocityX(0.0f);
         }
 
         private boolean targetInFacingDirection(Aabb targetBounds) {
@@ -2016,18 +2126,88 @@ final class TestRoomScene implements Scene {
             return first.y() < second.top() && first.top() > second.y();
         }
 
-        private List<HitboxInstance> createAttack2Hitboxes(AttackDefinition attack, int frameIndex) {
-            return attack2Bounds(frameIndex).stream()
-                    .map(bounds -> new HitboxInstance(BOSS_ENTITY_ID, CombatTeam.ENEMY, attack, bounds, true))
+        private List<HitboxInstance> createAttackHitboxes(BossAttackMove attackMove, int frameIndex) {
+            return attackBounds(attackMove, frameIndex).stream()
+                    .map(bounds -> new HitboxInstance(BOSS_ENTITY_ID, CombatTeam.ENEMY, attackMove.timeline().attack(), bounds, true))
                     .toList();
         }
 
-        private List<Aabb> attack2Bounds(int frameIndex) {
-            if (frameIndex >= 1 && frameIndex <= 3) {
+        private List<Aabb> attackBounds(BossAttackMove attackMove, int frameIndex) {
+            if (attackMove == null) {
+                return List.of();
+            }
+            int frame = frameIndex + 1;
+            return switch (attackMove.clipId()) {
+                case "attack1" -> attack1Bounds(frame);
+                case "attack2" -> attack2Bounds(frame);
+                case "attack3" -> attack3Bounds(frame);
+                case "attack4" -> attack4Bounds(frame);
+                case "attack5" -> attack5Bounds(frame);
+                case "attack6" -> attack6Bounds(frame);
+                default -> List.of();
+            };
+        }
+
+        private List<Aabb> attack1Bounds(int frame) {
+            if (frame >= 3 && frame <= 4) {
+                return List.of(facingBodyBox());
+            }
+            if (frame >= 6 && frame <= 14) {
+                return List.of(facingTallSweepBox());
+            }
+            if (frame >= 19 && frame <= 22) {
+                return List.of(facingFootBox(), detachedBodyBox(facingDirection), detachedBodyBox(-facingDirection));
+            }
+            return List.of();
+        }
+
+        private List<Aabb> attack2Bounds(int frame) {
+            if (frame >= 2 && frame <= 4) {
                 return List.of(facingBodyBox(), topBox());
             }
-            if (frameIndex >= 4 && frameIndex <= 6) {
+            if (frame >= 5 && frame <= 7) {
                 return List.of(oppositeBodyBox(), facingSmallBox());
+            }
+            return List.of();
+        }
+
+        private List<Aabb> attack3Bounds(int frame) {
+            if (frame >= 6 && frame <= 9) {
+                return List.of(oppositeBodyBox(), facingSmallBox());
+            }
+            if (frame >= 13 && frame <= 19) {
+                return List.of(facingMidSmallBox());
+            }
+            return List.of();
+        }
+
+        private List<Aabb> attack4Bounds(int frame) {
+            if ((frame >= 5 && frame <= 11) || frame >= 18) {
+                return List.of(facingWideMiddleBox());
+            }
+            return List.of();
+        }
+
+        private List<Aabb> attack5Bounds(int frame) {
+            if (frame >= 9 && frame <= 14) {
+                return List.of(facingLowSweepBox());
+            }
+            if (frame >= 21 && frame <= 25) {
+                return List.of(highSideBodyBox(1), highSideBodyBox(2));
+            }
+            return List.of();
+        }
+
+        private List<Aabb> attack6Bounds(int frame) {
+            if (frame >= 7 && frame <= 11) {
+                float width = body.width() * 0.25f;
+                float height = body.height() * 0.25f;
+                return List.of(new Aabb(
+                        body.x() + body.width() * 0.5f - width * 0.5f,
+                        body.y(),
+                        width,
+                        height
+                ));
             }
             return List.of();
         }
@@ -2062,6 +2242,64 @@ final class TestRoomScene implements Scene {
             return facingRight()
                     ? new Aabb(body.bounds().right(), y, width, height)
                     : new Aabb(body.x() - width, y, width, height);
+        }
+
+        private Aabb facingMidSmallBox() {
+            float width = body.width() / 3.0f;
+            float height = body.height() / 3.0f;
+            float y = body.y() + body.height() * 0.5f - height * 0.5f;
+            return facingRight()
+                    ? new Aabb(body.bounds().right(), y, width, height)
+                    : new Aabb(body.x() - width, y, width, height);
+        }
+
+        private Aabb facingTallSweepBox() {
+            float width = body.height();
+            float height = body.height() * 1.5f;
+            float y = body.y() - body.height() * 0.25f;
+            return facingRight()
+                    ? new Aabb(body.bounds().right(), y, width, height)
+                    : new Aabb(body.x() - width, y, width, height);
+        }
+
+        private Aabb facingWideMiddleBox() {
+            float width = body.height() * 1.5f;
+            float height = body.height() * 0.5f;
+            float y = body.y() + body.height() * 0.25f;
+            return facingRight()
+                    ? new Aabb(body.bounds().right(), y, width, height)
+                    : new Aabb(body.x() - width, y, width, height);
+        }
+
+        private Aabb facingLowSweepBox() {
+            float width = body.height();
+            float height = body.height() / 3.0f;
+            return facingRight()
+                    ? new Aabb(body.bounds().right(), body.y(), width, height)
+                    : new Aabb(body.x() - width, body.y(), width, height);
+        }
+
+        private Aabb facingFootBox() {
+            float height = body.height() * 0.25f;
+            return facingRight()
+                    ? new Aabb(body.bounds().right(), body.y(), body.width(), height)
+                    : new Aabb(body.x() - body.width(), body.y(), body.width(), height);
+        }
+
+        private Aabb detachedBodyBox(int direction) {
+            float gap = body.width() * 0.5f;
+            float x = direction > 0
+                    ? body.bounds().right() + gap
+                    : body.x() - gap - body.width();
+            return new Aabb(x, body.y(), body.width(), body.height());
+        }
+
+        private Aabb highSideBodyBox(int slot) {
+            float gap = body.height() * 0.125f;
+            float x = facingRight()
+                    ? body.bounds().right() + (slot - 1) * (body.width() + gap)
+                    : body.x() - slot * body.width() - (slot - 1) * gap;
+            return new Aabb(x, body.y() + body.height() * 0.16f, body.width(), body.height());
         }
     }
 
