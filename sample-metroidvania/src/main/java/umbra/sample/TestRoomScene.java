@@ -1586,7 +1586,7 @@ final class TestRoomScene implements Scene {
                 boss.body.y() + boss.drawOffsetY,
                 boss.drawWidth,
                 boss.drawHeight,
-                boss.facingRight(),
+                boss.spriteFlipX(),
                 false,
                 WHITE
         ));
@@ -1982,8 +1982,12 @@ final class TestRoomScene implements Scene {
 
         private float drawX() {
             float centeredX = body.x() + body.width() * 0.5f - drawWidth * 0.5f;
-            float directionalOffsetX = facingRight() ? -drawOffsetX : drawOffsetX;
+            float directionalOffsetX = spriteFlipX() ? -drawOffsetX : drawOffsetX;
             return centeredX + directionalOffsetX;
+        }
+
+        private boolean spriteFlipX() {
+            return !facingRight();
         }
 
         private boolean attack2CanReach(Aabb targetBounds) {
