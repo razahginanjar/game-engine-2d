@@ -57,7 +57,9 @@ public final class RoomLoader {
         List<RoomDefinition.CameraZoneDefinition> cameraZones = readCameraZones(root, widthTiles, heightTiles, tileSize);
         List<RoomDefinition.AbilityPickupDefinition> abilityPickups = readAbilityPickups(root, widthTiles, heightTiles, tileSize);
         List<RoomDefinition.AbilityGateDefinition> abilityGates = readAbilityGates(root, widthTiles, heightTiles, tileSize);
+        List<RoomDefinition.BossArenaDefinition> bossArenas = readBossArenas(root, widthTiles, heightTiles, tileSize);
         validateDoorTargets(doors, spawns);
+        validateBossArenaDoors(bossArenas, doors);
 
         return new RoomDefinition(
                 roomId,
@@ -71,7 +73,8 @@ public final class RoomLoader {
                 doors,
                 cameraZones,
                 abilityPickups,
-                abilityGates
+                abilityGates,
+                bossArenas
         );
     }
 
@@ -286,6 +289,74 @@ public final class RoomLoader {
         return result;
     }
 
+    private List<RoomDefinition.BossArenaDefinition> readBossArenas(
+            JsonObject root,
+            int widthTiles,
+            int heightTiles,
+            int tileSize
+    ) {
+        if (!root.has("boss_arenas")) {
+            return List.of();
+        }
+        JsonArray arenas = root.getAsJsonArray("boss_arenas");
+        List<RoomDefinition.BossArenaDefinition> result = new ArrayList<>();
+        Set<String> ids = new HashSet<>();
+        float roomWidth = widthTiles * tileSize;
+        float roomHeight = heightTiles * tileSize;
+        for (JsonElement element : arenas) {
+            JsonObject arena = element.getAsJsonObject();
+            String id = requiredString(arena, "id");
+            String bossId = requiredString(arena, "boss_id");
+            String defeatFlagId = requiredString(arena, "defeat_flag_id");
+            validateSnakeCase("boss arena id", id);
+            validateSnakeCase("boss_id", bossId);
+            validateSnakeCase("defeat_flag_id", defeatFlagId);
+            if (!ids.add(id)) {
+                throw new RoomValidationException("duplicate boss arena id: " + id);
+            }
+            RoomDefinition.RectDefinition arenaBounds = readRect(arena, "arena", roomWidth, roomHeight);
+            RoomDefinition.RectDefinition activationBounds = readRect(arena, "activation", roomWidth, roomHeight);
+            List<String> lockedDoorIds = readLockedDoorIds(arena);
+            result.add(new RoomDefinition.BossArenaDefinition(
+                    id,
+                    bossId,
+                    defeatFlagId,
+                    arenaBounds,
+                    activationBounds,
+                    lockedDoorIds
+            ));
+        }
+        return result;
+    }
+
+    private RoomDefinition.RectDefinition readRect(JsonObject object, String key, float roomWidth, float roomHeight) {
+        if (!object.has(key) || !object.get(key).isJsonObject()) {
+            throw new RoomValidationException("missing required object: " + key);
+        }
+        JsonObject rect = object.getAsJsonObject(key);
+        float x = requiredFloat(rect, "x");
+        float y = requiredFloat(rect, "y");
+        float width = requiredFloat(rect, "w");
+        float height = requiredFloat(rect, "h");
+        validatePositiveArea(key, key, width, height);
+        validateRectInsideRoom(key, key, x, y, width, height, roomWidth, roomHeight);
+        return new RoomDefinition.RectDefinition(x, y, width, height);
+    }
+
+    private List<String> readLockedDoorIds(JsonObject object) {
+        if (!object.has("locked_door_ids")) {
+            return List.of();
+        }
+        JsonArray values = object.getAsJsonArray("locked_door_ids");
+        List<String> result = new ArrayList<>();
+        for (JsonElement value : values) {
+            String doorId = value.getAsString();
+            validateSnakeCase("locked door id", doorId);
+            result.add(doorId);
+        }
+        return result;
+    }
+
     private void validateDoorTargets(List<RoomDefinition.DoorDefinition> doors, List<RoomDefinition.SpawnPoint> spawns) {
         Set<String> spawnIds = new HashSet<>();
         for (RoomDefinition.SpawnPoint spawn : spawns) {
@@ -301,6 +372,23 @@ public final class RoomLoader {
             validateSnakeCase("door target_spawn", door.targetSpawn());
             if (door.targetRoom().equals("self") && !spawnIds.contains(door.targetSpawn())) {
                 throw new RoomValidationException("self-target door references missing spawn: " + door.id());
+            }
+        }
+    }
+
+    private void validateBossArenaDoors(
+            List<RoomDefinition.BossArenaDefinition> bossArenas,
+            List<RoomDefinition.DoorDefinition> doors
+    ) {
+        Set<String> doorIds = new HashSet<>();
+        for (RoomDefinition.DoorDefinition door : doors) {
+            doorIds.add(door.id());
+        }
+        for (RoomDefinition.BossArenaDefinition bossArena : bossArenas) {
+            for (String lockedDoorId : bossArena.lockedDoorIds()) {
+                if (!doorIds.contains(lockedDoorId)) {
+                    throw new RoomValidationException("boss arena references missing locked door: " + lockedDoorId);
+                }
             }
         }
     }

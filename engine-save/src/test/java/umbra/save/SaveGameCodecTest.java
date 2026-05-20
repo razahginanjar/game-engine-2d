@@ -17,7 +17,8 @@ final class SaveGameCodecTest {
                 "forest_test_02",
                 "checkpoint_b",
                 List.of("forest_test_01", "forest_test_02"),
-                List.of("dash")
+                List.of("dash"),
+                List.of("boss_impaler_defeated")
         );
 
         SaveGame decoded = codec.decode(codec.encode(saveGame));
@@ -27,6 +28,7 @@ final class SaveGameCodecTest {
         assertEquals("checkpoint_b", decoded.checkpointSpawnId());
         assertEquals(List.of("forest_test_01", "forest_test_02"), decoded.visitedRoomIds());
         assertEquals(List.of("dash"), decoded.unlockedAbilityIds());
+        assertEquals(List.of("boss_impaler_defeated"), decoded.worldFlagIds());
     }
 
     @Test
@@ -36,6 +38,15 @@ final class SaveGameCodecTest {
         );
 
         assertEquals(List.of(), decoded.unlockedAbilityIds());
+    }
+
+    @Test
+    void treatsMissingWorldFlagsAsEmptyForBackwardCompatibility() {
+        SaveGame decoded = codec.decode(
+                "{\"version\":1,\"checkpointRoomId\":\"forest_test_01\",\"checkpointSpawnId\":\"entry_left\",\"visitedRoomIds\":[\"forest_test_01\"]}"
+        );
+
+        assertEquals(List.of(), decoded.worldFlagIds());
     }
 
     @Test
@@ -60,5 +71,11 @@ final class SaveGameCodecTest {
     void rejectsBlankUnlockedAbilities() {
         assertThrows(SaveValidationException.class,
                 () -> codec.decode("{\"version\":1,\"checkpointRoomId\":\"forest_test_01\",\"checkpointSpawnId\":\"entry_left\",\"unlockedAbilityIds\":[\"\"]}"));
+    }
+
+    @Test
+    void rejectsBlankWorldFlags() {
+        assertThrows(SaveValidationException.class,
+                () -> codec.decode("{\"version\":1,\"checkpointRoomId\":\"forest_test_01\",\"checkpointSpawnId\":\"entry_left\",\"worldFlagIds\":[\"\"]}"));
     }
 }

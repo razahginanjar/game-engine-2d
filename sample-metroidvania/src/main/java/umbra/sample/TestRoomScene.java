@@ -21,6 +21,14 @@ import umbra.ai.EnemyBrain;
 import umbra.ai.EnemyBrainConfig;
 import umbra.ai.EnemyBrainDecision;
 import umbra.ai.EnemyBrainInput;
+import umbra.boss.BossArenaController;
+import umbra.boss.BossArenaDefinition;
+import umbra.boss.BossArenaInput;
+import umbra.boss.BossArenaStatus;
+import umbra.boss.BossAttackPattern;
+import umbra.boss.BossAttackSelector;
+import umbra.boss.BossFightState;
+import umbra.boss.BossPhaseDefinition;
 import umbra.combat.AttackDefinition;
 import umbra.combat.AttackPhase;
 import umbra.combat.AttackTimelineDefinition;
@@ -86,6 +94,7 @@ import java.util.Set;
 final class TestRoomScene implements Scene {
     private static final int PLAYER_ENTITY_ID = 1;
     private static final int FIRST_ENEMY_ENTITY_ID = 100;
+    private static final int BOSS_ENTITY_ID = 5000;
     private static final DebugColor SOLID_TILE_COLOR = new DebugColor(0.18f, 0.30f, 0.22f, 1.0f);
     private static final DebugColor GRID_COLOR = new DebugColor(0.20f, 0.45f, 0.48f, 0.38f);
     private static final DebugColor DOOR_TRIGGER_COLOR = new DebugColor(0.10f, 0.85f, 1.0f, 0.85f);
@@ -96,6 +105,9 @@ final class TestRoomScene implements Scene {
     private static final DebugColor ABILITY_GATE_UNLOCKED_COLOR = new DebugColor(0.25f, 1.0f, 0.45f, 0.35f);
     private static final DebugColor ENEMY_VISION_COLOR = new DebugColor(0.45f, 0.70f, 1.0f, 0.40f);
     private static final DebugColor ENEMY_ATTACK_RANGE_COLOR = new DebugColor(1.0f, 0.45f, 0.15f, 0.70f);
+    private static final DebugColor BOSS_ARENA_COLOR = new DebugColor(0.95f, 0.25f, 0.95f, 0.40f);
+    private static final DebugColor BOSS_LOCKED_DOOR_COLOR = new DebugColor(1.0f, 0.10f, 0.10f, 0.92f);
+    private static final DebugColor BOSS_HURTBOX_COLOR = new DebugColor(1.0f, 0.65f, 0.15f, 1.0f);
     private static final DebugColor PLAYER_OUTLINE_COLOR = new DebugColor(1.0f, 1.0f, 0.0f, 1.0f);
     private static final DebugColor HURTBOX_COLOR = new DebugColor(1.0f, 1.0f, 0.0f, 1.0f);
     private static final DebugColor SELECTED_ENEMY_COLOR = new DebugColor(0.15f, 0.85f, 1.0f, 1.0f);
@@ -113,6 +125,7 @@ final class TestRoomScene implements Scene {
     private static final float PLAYER_SPRITE_OFFSET_X = -46.0f;
     private static final float PLAYER_SPRITE_OFFSET_Y = 0.0f;
     private static final String SLIME_TEXTURE_PREFIX = "slime_green_";
+    private static final String IMPALER_TEXTURE_PREFIX = "impaler_";
     private static final float EDITOR_BUTTON_X = 12.0f;
     private static final float EDITOR_BUTTON_TOP_Y = 12.0f;
     private static final float EDITOR_BUTTON_WIDTH = 132.0f;
@@ -122,6 +135,7 @@ final class TestRoomScene implements Scene {
     private static final String DEFAULT_PLAYER_SPAWN_ID = "entry_left";
     private static final String ABILITY_DASH = "dash";
     private static final String ABILITY_DOUBLE_JUMP = "double_jump";
+    private static final String IMPALER_BOSS_ID = "impaler";
     private static final String SAMPLE_SAVE_PATH = ".umbra2d/sample-save.json";
     private static final float CHECKPOINT_TRIGGER_WIDTH = 40.0f;
     private static final float CHECKPOINT_TRIGGER_HEIGHT = 48.0f;
@@ -130,6 +144,11 @@ final class TestRoomScene implements Scene {
     private static final float PLAYER_DASH_SPEED = 430.0f;
     private static final float PLAYER_DASH_DURATION_SECONDS = 0.16f;
     private static final float PLAYER_DASH_COOLDOWN_SECONDS = 0.35f;
+    private static final float BOSS_ATTACK_RANGE = 124.0f;
+    private static final float BOSS_PHASE_ONE_SPEED = 54.0f;
+    private static final float BOSS_PHASE_TWO_SPEED = 76.0f;
+    private static final float BOSS_HEALTH_BAR_WIDTH = 360.0f;
+    private static final float BOSS_HEALTH_BAR_HEIGHT = 14.0f;
 
     private final SpriteBatch batch;
     private final ShapeRenderer shapes;
@@ -153,6 +172,7 @@ final class TestRoomScene implements Scene {
     private final AnimationSetDefinition flyingEyeAnimationSet;
     private final AnimationSetDefinition skeletonAnimationSet;
     private final AnimationSetDefinition mushroomAnimationSet;
+    private final AnimationSetDefinition impalerAnimationSet;
     private final AnimationPlayer playerAnimator = new AnimationPlayer();
     private final KinematicBody player;
     private final PlayerController controller;
@@ -162,11 +182,23 @@ final class TestRoomScene implements Scene {
     private final List<EnemyActor> enemies = new ArrayList<>();
     private final CombatResolver combatResolver = new CombatResolver();
     private final AttackTimelinePlayer attackTimeline = new AttackTimelinePlayer();
+    private final AttackTimelinePlayer bossAttackTimeline = new AttackTimelinePlayer();
+    private final BossAttackSelector bossAttackSelector = new BossAttackSelector();
+    private final List<BossAttackPattern> bossAttackPatterns = List.of(
+            new BossAttackPattern("impaler_stab", "phase_1", 32.0f, 150.0f, 1.05f),
+            new BossAttackPattern("impaler_sweep", "phase_2", 32.0f, 178.0f, 0.76f)
+    );
     private final AttackTimelineDefinition slashTimeline = new AttackTimelineDefinition(
             new AttackDefinition("player_slash_01", 1, 160.0f, 40.0f, 0.045f, 0.18f, "slash"),
             0.06f,
             0.10f,
             0.18f
+    );
+    private final AttackTimelineDefinition bossAttackTimelineDefinition = new AttackTimelineDefinition(
+            new AttackDefinition("impaler_spear", 1, 180.0f, 70.0f, 0.05f, 0.24f, "boss_spear"),
+            0.26f,
+            0.18f,
+            0.36f
     );
     private final AttackDefinition enemyContactAttack = new AttackDefinition(
             "enemy_contact",
@@ -192,6 +224,11 @@ final class TestRoomScene implements Scene {
     private final CheckpointState checkpointState = new CheckpointState(START_ROOM_ID, DEFAULT_PLAYER_SPAWN_ID);
     private final Set<String> visitedRoomIds = new LinkedHashSet<>();
     private final AbilityState abilityState = new AbilityState();
+    private final Set<String> worldFlagIds = new LinkedHashSet<>();
+    private BossActor boss;
+    private BossArenaController bossArenaController;
+    private BossArenaStatus bossArenaStatus;
+    private HitboxInstance currentBossAttackHitbox;
     private float deathRespawnSeconds;
     private float roomTransitionLockoutSeconds;
     private float playerDashSeconds;
@@ -217,6 +254,8 @@ final class TestRoomScene implements Scene {
                 List.of("move", "attack", "take_hit", "death", "shield"));
         this.mushroomAnimationSet = loadAnimationSet("/metadata/mushroom.anim.json",
                 List.of("move", "idle", "attack", "take_hit", "death"));
+        this.impalerAnimationSet = loadAnimationSet("/metadata/impaler.anim.json",
+                List.of("idle", "move", "attack", "death"));
         loadExternalSprites();
         this.roomRegistry = loadRoomRegistry();
         visitedRoomIds.add(START_ROOM_ID);
@@ -232,6 +271,7 @@ final class TestRoomScene implements Scene {
         );
         this.controller = new PlayerController(createdPlayerConfig);
         createEnemies();
+        createBoss();
         this.playerAnimator.play(playerAnimationSet.clip("idle"));
     }
 
@@ -295,7 +335,9 @@ final class TestRoomScene implements Scene {
         }
         updateAbilityPickups();
         resolveAbilityGates();
+        updateBossArena();
         updateEnemies(deltaSeconds);
+        updateBoss(deltaSeconds);
         updateAnimations(deltaSeconds);
         updateCombat(deltaSeconds);
         updateCheckpoints();
@@ -308,9 +350,11 @@ final class TestRoomScene implements Scene {
     public void render() {
         drawRoom();
         drawEnemies();
+        drawBoss();
         drawPlayer();
         drawCombatDebug();
         drawEditorOverlay();
+        drawBossHud();
         drawHud();
     }
 
@@ -328,7 +372,8 @@ final class TestRoomScene implements Scene {
     private RoomRegistry loadRoomRegistry() {
         return new RoomRegistry(List.of(
                 loadRoom("forest_test_01"),
-                loadRoom("forest_test_02")
+                loadRoom("forest_test_02"),
+                loadRoom("forest_boss_01")
         ));
     }
 
@@ -350,6 +395,7 @@ final class TestRoomScene implements Scene {
             checkpointState.activate(saveGame.checkpointRoomId(), saveGame.checkpointSpawnId());
             visitedRoomIds.addAll(saveGame.visitedRoomIds());
             abilityState.unlockAll(saveGame.unlockedAbilityIds());
+            worldFlagIds.addAll(saveGame.worldFlagIds());
             currentRoomId = saveGame.checkpointRoomId();
         } catch (RuntimeException exception) {
             Gdx.app.error("Umbra2D", "Ignoring invalid sample save: " + SAMPLE_SAVE_PATH, exception);
@@ -365,7 +411,8 @@ final class TestRoomScene implements Scene {
                     checkpointState.roomId(),
                     checkpointState.spawnId(),
                     List.copyOf(visitedRoomIds),
-                    abilityState.unlockedAbilityIds()
+                    abilityState.unlockedAbilityIds(),
+                    List.copyOf(worldFlagIds)
             );
             saveFile.writeString(saveGameCodec.encode(saveGame), false, StandardCharsets.UTF_8.name());
         } catch (RuntimeException exception) {
@@ -381,6 +428,15 @@ final class TestRoomScene implements Scene {
             return;
         }
         Aabb playerBounds = player.bounds();
+        Optional<RoomDefinition.DoorDefinition> lockedDoor = findLockedBossDoor(playerBounds);
+        if (lockedDoor.isPresent()) {
+            RoomDefinition.DoorDefinition door = lockedDoor.get();
+            Aabb doorBounds = new Aabb(door.x(), door.y(), door.width(), door.height());
+            player.setPosition(abilityTriggerResolver.resolveHorizontalBlockX(playerBounds, doorBounds), player.y());
+            player.setVelocityX(0.0f);
+            playerDashSeconds = 0.0f;
+            return;
+        }
         Optional<RoomTransitionRequest> request = roomTriggerResolver.findDoorTransition(
                 room,
                 currentRoomId,
@@ -394,6 +450,22 @@ final class TestRoomScene implements Scene {
         }
     }
 
+    private Optional<RoomDefinition.DoorDefinition> findLockedBossDoor(Aabb playerBounds) {
+        if (bossArenaStatus == null || !bossArenaStatus.locked()) {
+            return Optional.empty();
+        }
+        for (RoomDefinition.DoorDefinition door : room.doors()) {
+            if (!bossArenaStatus.lockedDoorIds().contains(door.id())) {
+                continue;
+            }
+            Aabb doorBounds = new Aabb(door.x(), door.y(), door.width(), door.height());
+            if (playerBounds.overlaps(doorBounds)) {
+                return Optional.of(door);
+            }
+        }
+        return Optional.empty();
+    }
+
     private void transitionToRoom(String roomId, String spawnId) {
         currentRoomId = roomId;
         visitedRoomIds.add(roomId);
@@ -403,6 +475,7 @@ final class TestRoomScene implements Scene {
         resetPlayerAt(spawn);
         clearTransientCombatState();
         createEnemies();
+        createBoss();
         selectedEnemy = null;
         roomTransitionLockoutSeconds = ROOM_TRANSITION_LOCKOUT_SECONDS;
         clampCameraToRoom();
@@ -546,7 +619,10 @@ final class TestRoomScene implements Scene {
         hitPauseTimer.reset();
         playerHitStunTimer.reset();
         currentAttackHitbox = null;
+        currentBossAttackHitbox = null;
         attackTimeline.reset();
+        bossAttackTimeline.reset();
+        bossAttackSelector.reset();
         playerDashSeconds = 0.0f;
     }
 
@@ -652,6 +728,46 @@ final class TestRoomScene implements Scene {
                 enemies.add(createEnemy(kind, spawn.id(), spawn.x(), spawn.y()));
             }
         }
+    }
+
+    private void createBoss() {
+        boss = null;
+        bossArenaController = null;
+        bossArenaStatus = null;
+        currentBossAttackHitbox = null;
+        bossAttackTimeline.reset();
+        bossAttackSelector.reset();
+        if (room.bossArenas().isEmpty()) {
+            return;
+        }
+
+        RoomDefinition.BossArenaDefinition roomArena = room.bossArenas().get(0);
+        bossArenaController = new BossArenaController(toBossArenaDefinition(roomArena), List.of(
+                new BossPhaseDefinition("phase_1", 1.0f),
+                new BossPhaseDefinition("phase_2", 0.5f)
+        ));
+        if (!worldFlagIds.contains(roomArena.defeatFlagId())) {
+            for (RoomDefinition.SpawnPoint spawn : room.spawns()) {
+                if (spawn.type().equals("boss_spawn") && spawn.id().startsWith(IMPALER_BOSS_ID)) {
+                    boss = new BossActor(spawn.id(), spawn.x(), spawn.y(), impalerAnimationSet);
+                    break;
+                }
+            }
+        }
+        updateBossArena();
+    }
+
+    private BossArenaDefinition toBossArenaDefinition(RoomDefinition.BossArenaDefinition roomArena) {
+        RoomDefinition.RectDefinition arena = roomArena.arena();
+        RoomDefinition.RectDefinition activation = roomArena.activation();
+        return new BossArenaDefinition(
+                roomArena.id(),
+                roomArena.bossId(),
+                roomArena.defeatFlagId(),
+                new Aabb(arena.x(), arena.y(), arena.width(), arena.height()),
+                new Aabb(activation.x(), activation.y(), activation.width(), activation.height()),
+                roomArena.lockedDoorIds()
+        );
     }
 
     private EnemyKind enemyKindForSpawn(String spawnId) {
@@ -884,7 +1000,11 @@ final class TestRoomScene implements Scene {
         for (EnemyActor enemy : enemies) {
             enemy.health.update(deltaSeconds);
         }
+        if (boss != null) {
+            boss.health.update(deltaSeconds);
+        }
         attackTimeline.update(deltaSeconds);
+        bossAttackTimeline.update(deltaSeconds);
 
         if (currentAttackHitbox != null) {
             currentAttackHitbox.setBounds(slashHitboxDefinition.createBounds(
@@ -898,18 +1018,31 @@ final class TestRoomScene implements Scene {
                     enemyHurtboxes.add(new HurtboxInstance(enemy.entityId, CombatTeam.ENEMY, enemy.body.bounds(), true));
                 }
             }
+            if (boss != null && !boss.health.defeated() && bossArenaStatus != null && bossArenaStatus.active()) {
+                enemyHurtboxes.add(new HurtboxInstance(BOSS_ENTITY_ID, CombatTeam.ENEMY, boss.body.bounds(), true));
+            }
             List<DamageEvent> damageEvents = combatResolver.resolve(List.of(currentAttackHitbox), enemyHurtboxes);
             for (DamageEvent event : damageEvents) {
-                EnemyActor enemy = findEnemy(event.targetEntityId());
-                if (enemy == null) {
-                    continue;
-                }
-                DamageApplication application = enemy.health.apply(event);
-                if (application.applied()) {
-                    hitPauseTimer.trigger(event.hitPauseSeconds());
-                    enemy.hitStunTimer.trigger(event.hitStunSeconds());
-                    enemy.body.setVelocityX(event.knockbackX());
-                    enemy.body.setVelocityY(event.knockbackY());
+                if (event.targetEntityId() == BOSS_ENTITY_ID && boss != null) {
+                    DamageApplication application = boss.health.apply(event);
+                    if (application.applied()) {
+                        hitPauseTimer.trigger(event.hitPauseSeconds());
+                        if (application.defeated()) {
+                            handleBossDefeated();
+                        }
+                    }
+                } else {
+                    EnemyActor enemy = findEnemy(event.targetEntityId());
+                    if (enemy == null) {
+                        continue;
+                    }
+                    DamageApplication application = enemy.health.apply(event);
+                    if (application.applied()) {
+                        hitPauseTimer.trigger(event.hitPauseSeconds());
+                        enemy.hitStunTimer.trigger(event.hitStunSeconds());
+                        enemy.body.setVelocityX(event.knockbackX());
+                        enemy.body.setVelocityY(event.knockbackY());
+                    }
                 }
             }
 
@@ -925,6 +1058,10 @@ final class TestRoomScene implements Scene {
                     enemyAttackHitboxes.add(enemy.createAttackHitbox(enemyContactAttack));
                 }
             }
+            if (boss != null && !boss.health.defeated() && bossAttackActive()) {
+                currentBossAttackHitbox = boss.createAttackHitbox(bossAttackTimelineDefinition.attack());
+                enemyAttackHitboxes.add(currentBossAttackHitbox);
+            }
             List<DamageEvent> damageEvents = combatResolver.resolve(
                     enemyAttackHitboxes,
                     List.of(new HurtboxInstance(PLAYER_ENTITY_ID, CombatTeam.PLAYER, player.bounds(), true))
@@ -938,6 +1075,18 @@ final class TestRoomScene implements Scene {
                 }
             }
         }
+        if (bossAttackTimeline.phase() == AttackPhase.FINISHED) {
+            currentBossAttackHitbox = null;
+        }
+    }
+
+    private void handleBossDefeated() {
+        if (bossArenaController != null && worldFlagIds.add(bossArenaController.definition().defeatFlagId())) {
+            persistCheckpointSave();
+        }
+        currentBossAttackHitbox = null;
+        bossAttackTimeline.reset();
+        updateBossArena();
     }
 
     private boolean enemyAttackActive(EnemyActor enemy) {
@@ -946,6 +1095,19 @@ final class TestRoomScene implements Scene {
                 && clip != null
                 && clip.id().equals("attack")
                 && clip.hasEvent(enemy.animator.frameIndex(), ANIMATION_EVENT_ATTACK_ACTIVE);
+    }
+
+    private boolean bossAttackActive() {
+        if (boss == null) {
+            return false;
+        }
+        AnimationClipDefinition clip = boss.animator.clip();
+        return bossArenaStatus != null
+                && bossArenaStatus.active()
+                && clip != null
+                && clip.id().equals("attack")
+                && (bossAttackTimeline.hitboxActive()
+                || clip.hasEvent(boss.animator.frameIndex(), ANIMATION_EVENT_ATTACK_ACTIVE));
     }
 
     private EnemyActor findEnemy(int entityId) {
@@ -990,6 +1152,68 @@ final class TestRoomScene implements Scene {
         if (!playerHitStunTimer.stunned()) {
             player.setVelocityX(0.0f);
         }
+    }
+
+    private void updateBossArena() {
+        if (bossArenaController == null) {
+            bossArenaStatus = null;
+            return;
+        }
+        boolean defeatFlagSet = worldFlagIds.contains(bossArenaController.definition().defeatFlagId());
+        int currentHealth = boss == null || defeatFlagSet ? 0 : boss.health.currentHealth();
+        int maxHealth = boss == null ? BossActor.MAX_HEALTH : boss.health.maxHealth();
+        bossArenaStatus = bossArenaController.update(new BossArenaInput(
+                player.bounds(),
+                currentHealth,
+                maxHealth,
+                defeatFlagSet
+        ));
+    }
+
+    private void updateBoss(float deltaSeconds) {
+        if (boss == null || boss.health.defeated() || bossArenaStatus == null || !bossArenaStatus.active()) {
+            return;
+        }
+        float bossCenterX = boss.body.x() + boss.body.width() * 0.5f;
+        float playerCenterX = player.x() + player.width() * 0.5f;
+        float dx = playerCenterX - bossCenterX;
+        float distance = Math.abs(dx);
+        boss.facingDirection = dx >= 0.0f ? 1 : -1;
+
+        if (bossAttackTimeline.acceptingNewAttack()) {
+            Optional<BossAttackPattern> selectedAttack = bossAttackSelector.update(
+                    bossArenaStatus.phase().id(),
+                    distance,
+                    bossAttackPatterns,
+                    deltaSeconds
+            );
+            if (selectedAttack.isPresent()) {
+                bossAttackTimeline.start(bossAttackTimelineDefinition);
+                currentBossAttackHitbox = boss.createAttackHitbox(bossAttackTimelineDefinition.attack());
+                boss.animator.restart(boss.animationSet.clip("attack"));
+                boss.body.setVelocityX(0.0f);
+                return;
+            }
+        } else {
+            return;
+        }
+
+        if (distance <= BOSS_ATTACK_RANGE) {
+            boss.body.setVelocityX(0.0f);
+            return;
+        }
+        float speed = bossArenaStatus.phase().id().equals("phase_2") ? BOSS_PHASE_TWO_SPEED : BOSS_PHASE_ONE_SPEED;
+        float nextX = boss.body.x() + boss.facingDirection * speed * deltaSeconds;
+        boss.body.setPosition(clampBossX(boss, nextX), boss.body.y());
+        boss.body.setVelocityX(boss.facingDirection * speed);
+    }
+
+    private float clampBossX(BossActor actor, float x) {
+        if (bossArenaController == null) {
+            return x;
+        }
+        Aabb arena = bossArenaController.definition().arenaBounds();
+        return Math.max(arena.x(), Math.min(x, arena.right() - actor.body.width()));
     }
 
     private void updateEnemies(float deltaSeconds) {
@@ -1110,6 +1334,10 @@ final class TestRoomScene implements Scene {
             playEnemyClip(enemy, resolveEnemyClip(enemy));
             enemy.animator.update(deltaSeconds);
         }
+        if (boss != null) {
+            playBossClip(resolveBossClip());
+            boss.animator.update(deltaSeconds);
+        }
     }
 
     private void playEnemyClip(EnemyActor enemy, AnimationClipDefinition clip) {
@@ -1119,6 +1347,15 @@ final class TestRoomScene implements Scene {
             return;
         }
         enemy.animator.play(clip);
+    }
+
+    private void playBossClip(AnimationClipDefinition clip) {
+        AnimationClipDefinition currentClip = boss.animator.clip();
+        if (currentClip == null || !currentClip.id().equals(clip.id())) {
+            boss.animator.restart(clip);
+            return;
+        }
+        boss.animator.play(clip);
     }
 
     private AnimationClipDefinition resolveEnemyClip(EnemyActor enemy) {
@@ -1143,6 +1380,19 @@ final class TestRoomScene implements Scene {
             return clipOrMove(enemy.animationSet, "idle");
         }
         return enemy.animationSet.clip("move");
+    }
+
+    private AnimationClipDefinition resolveBossClip() {
+        if (boss.health.defeated()) {
+            return boss.animationSet.clip("death");
+        }
+        if (!bossAttackTimeline.acceptingNewAttack()) {
+            return boss.animationSet.clip("attack");
+        }
+        if (bossArenaStatus != null && bossArenaStatus.active() && Math.abs(boss.body.velocityX()) > 0.01f) {
+            return boss.animationSet.clip("move");
+        }
+        return boss.animationSet.clip("idle");
     }
 
     private AnimationClipDefinition clipOrMove(AnimationSetDefinition animationSet, String clipId) {
@@ -1177,8 +1427,19 @@ final class TestRoomScene implements Scene {
         float roomHeight = grid.heightTiles() * grid.tileSize();
         float halfWidth = config.viewportWidth() / 2.0f;
         float halfHeight = config.viewportHeight() / 2.0f;
-        float targetX = Math.max(halfWidth, Math.min(player.x(), roomWidth - halfWidth));
-        float targetY = Math.max(halfHeight, Math.min(player.y(), roomHeight - halfHeight));
+        float minX = halfWidth;
+        float maxX = roomWidth - halfWidth;
+        float minY = halfHeight;
+        float maxY = roomHeight - halfHeight;
+        if (bossArenaStatus != null && bossArenaStatus.active() && bossArenaController != null) {
+            Aabb arena = bossArenaController.definition().arenaBounds();
+            minX = Math.max(minX, arena.x() + halfWidth);
+            maxX = Math.min(maxX, arena.right() - halfWidth);
+            minY = Math.max(minY, arena.y() + halfHeight);
+            maxY = Math.min(maxY, arena.top() - halfHeight);
+        }
+        float targetX = minX > maxX ? (minX + maxX) * 0.5f : Math.max(minX, Math.min(player.x(), maxX));
+        float targetY = minY > maxY ? (minY + maxY) * 0.5f : Math.max(minY, Math.min(player.y(), maxY));
         camera.position.set(targetX, targetY, 0.0f);
     }
 
@@ -1190,7 +1451,16 @@ final class TestRoomScene implements Scene {
             debugGeometryBuilder.addAabb(drawList, new Aabb(zone.x(), zone.y(), zone.width(), zone.height()), CAMERA_ZONE_COLOR);
         }
         for (RoomDefinition.DoorDefinition door : room.doors()) {
-            debugGeometryBuilder.addAabb(drawList, new Aabb(door.x(), door.y(), door.width(), door.height()), DOOR_TRIGGER_COLOR);
+            DebugColor color = bossArenaStatus != null
+                    && bossArenaStatus.locked()
+                    && bossArenaStatus.lockedDoorIds().contains(door.id())
+                    ? BOSS_LOCKED_DOOR_COLOR
+                    : DOOR_TRIGGER_COLOR;
+            debugGeometryBuilder.addAabb(drawList, new Aabb(door.x(), door.y(), door.width(), door.height()), color);
+        }
+        for (RoomDefinition.BossArenaDefinition arena : room.bossArenas()) {
+            RoomDefinition.RectDefinition bounds = arena.arena();
+            debugGeometryBuilder.addAabb(drawList, new Aabb(bounds.x(), bounds.y(), bounds.width(), bounds.height()), BOSS_ARENA_COLOR);
         }
         for (RoomDefinition.SpawnPoint spawn : room.spawns()) {
             if (spawn.type().equals("checkpoint")) {
@@ -1276,6 +1546,52 @@ final class TestRoomScene implements Scene {
         }
     }
 
+    private void drawBoss() {
+        if (boss == null) {
+            return;
+        }
+        if (drawBossSprite()) {
+            return;
+        }
+        DebugDrawList drawList = new DebugDrawList();
+        drawList.addRect(new DebugRect(
+                boss.body.x(),
+                boss.body.y(),
+                boss.body.width(),
+                boss.body.height(),
+                boss.health.defeated() ? new DebugColor(0.18f, 0.12f, 0.16f, 1.0f) : boss.fallbackColor,
+                DebugShapeStyle.FILLED
+        ));
+        debugRenderer.render(drawList);
+    }
+
+    private boolean drawBossSprite() {
+        AnimationClipDefinition clip = boss.animator.clip();
+        int frameIndex = boss.animator.frameIndex();
+        String textureId = clip == null ? null : clip.textureIdForFrame(frameIndex);
+        if (textureId == null || !spriteRenderer.hasTexture(textureId)) {
+            return false;
+        }
+
+        SpriteDrawList sprites = new SpriteDrawList();
+        sprites.add(new SpriteDrawCommand(
+                textureId,
+                clip.sourceXForFrame(frameIndex),
+                clip.sourceYForFrame(frameIndex),
+                clip.frameWidth(),
+                clip.frameHeight(),
+                boss.body.x() + boss.body.width() * 0.5f - boss.drawWidth * 0.5f + boss.drawOffsetX,
+                boss.body.y() + boss.drawOffsetY,
+                boss.drawWidth,
+                boss.drawHeight,
+                !boss.facingRight(),
+                false,
+                WHITE
+        ));
+        spriteRenderer.render(sprites);
+        return true;
+    }
+
     private boolean drawEnemySprite(EnemyActor enemy) {
         AnimationClipDefinition clip = enemy.animator.clip();
         int frameIndex = enemy.animator.frameIndex();
@@ -1311,6 +1627,12 @@ final class TestRoomScene implements Scene {
                 debugGeometryBuilder.addAabb(drawList, enemy.attackBounds(), ATTACK_ACTIVE_COLOR);
             }
         }
+        if (boss != null) {
+            debugGeometryBuilder.addAabb(drawList, boss.body.bounds(), BOSS_HURTBOX_COLOR);
+            if (!boss.health.defeated() && bossAttackActive()) {
+                debugGeometryBuilder.addAabb(drawList, boss.attackBounds(), ATTACK_ACTIVE_COLOR);
+            }
+        }
         if (selectedEnemy != null && enemies.contains(selectedEnemy)) {
             drawSelectedEnemyAiDebug(drawList, selectedEnemy);
             debugGeometryBuilder.addAabb(drawList, selectedEnemy.body.bounds(), SELECTED_ENEMY_COLOR);
@@ -1320,6 +1642,10 @@ final class TestRoomScene implements Scene {
             DebugColor hitboxColor = currentAttackHitbox.active() ? ATTACK_ACTIVE_COLOR : ATTACK_INACTIVE_COLOR;
             Aabb hitbox = currentAttackHitbox.bounds();
             debugGeometryBuilder.addAabb(drawList, hitbox, hitboxColor);
+        }
+        if (currentBossAttackHitbox != null) {
+            Aabb hitbox = currentBossAttackHitbox.bounds();
+            debugGeometryBuilder.addAabb(drawList, hitbox, bossAttackActive() ? ATTACK_ACTIVE_COLOR : ATTACK_INACTIVE_COLOR);
         }
         debugRenderer.render(drawList);
     }
@@ -1399,6 +1725,38 @@ final class TestRoomScene implements Scene {
         editorFont.draw(batch, text, EDITOR_BUTTON_X + 8.0f, editorButtonY(row) + 17.0f);
     }
 
+    private void drawBossHud() {
+        if (boss == null || bossArenaStatus == null || bossArenaStatus.state() == BossFightState.DORMANT) {
+            return;
+        }
+        uiProjection.setToOrtho2D(0.0f, 0.0f, Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
+        shapes.setProjectionMatrix(uiProjection);
+        batch.setProjectionMatrix(uiProjection);
+
+        float x = (Gdx.graphics.getWidth() - BOSS_HEALTH_BAR_WIDTH) * 0.5f;
+        float y = Gdx.graphics.getHeight() - 40.0f;
+        float ratio = boss.health.currentHealth() / (float) boss.health.maxHealth();
+
+        shapes.begin(ShapeRenderer.ShapeType.Filled);
+        shapes.setColor(new Color(0.06f, 0.04f, 0.05f, 0.92f));
+        shapes.rect(x - 4.0f, y - 4.0f, BOSS_HEALTH_BAR_WIDTH + 8.0f, BOSS_HEALTH_BAR_HEIGHT + 8.0f);
+        shapes.setColor(new Color(0.20f, 0.05f, 0.07f, 1.0f));
+        shapes.rect(x, y, BOSS_HEALTH_BAR_WIDTH, BOSS_HEALTH_BAR_HEIGHT);
+        shapes.setColor(new Color(0.82f, 0.14f, 0.10f, 1.0f));
+        shapes.rect(x, y, BOSS_HEALTH_BAR_WIDTH * ratio, BOSS_HEALTH_BAR_HEIGHT);
+        shapes.end();
+
+        batch.begin();
+        editorFont.setColor(Color.WHITE);
+        editorFont.draw(batch,
+                "Impaler " + boss.health.currentHealth() + "/" + boss.health.maxHealth()
+                        + " " + bossArenaStatus.phase().id()
+                        + (bossArenaStatus.locked() ? " arena locked" : " defeated"),
+                x,
+                y + 30.0f);
+        batch.end();
+    }
+
     private DebugColor playerColor() {
         if (playerHealth.defeated()) {
             return new DebugColor(0.25f, 0.25f, 0.25f, 1.0f);
@@ -1466,6 +1824,10 @@ final class TestRoomScene implements Scene {
         registerFantasyMonsterSheet(assetRoot, "mushroom_attack", "Mushroom", "Attack-sheet.png");
         registerFantasyMonsterSheet(assetRoot, "mushroom_take_hit", "Mushroom", "Take Hit-sheet.png");
         registerFantasyMonsterSheet(assetRoot, "mushroom_death", "Mushroom", "Death-sheet.png");
+        registerImpalerFrameSequence(assetRoot, "idle", "idle", "idle", 4);
+        registerImpalerFrameSequence(assetRoot, "move", "walk", "walk", 6);
+        registerImpalerFrameSequence(assetRoot, "attack", "attack2", "atk", 8);
+        registerImpalerFrameSequence(assetRoot, "death", "death", "dth", 25);
     }
 
     private Path playerSheetPath(Path assetRoot, String fileName) {
@@ -1496,6 +1858,27 @@ final class TestRoomScene implements Scene {
         )));
     }
 
+    private void registerImpalerFrameSequence(
+            Path assetRoot,
+            String clipId,
+            String assetClipFolder,
+            String assetFramePrefix,
+            int frameCount
+    ) {
+        Path clipRoot = assetRoot.resolve(Path.of(
+                "boss",
+                "Impaler Boss",
+                "Impaler Boss",
+                assetClipFolder
+        ));
+        for (int frame = 0; frame < frameCount; frame++) {
+            registerTextureIfPresent(
+                    impalerTextureId(clipId, frame),
+                    clipRoot.resolve(assetFramePrefix + (frame + 1) + ".png")
+            );
+        }
+    }
+
     private void registerSlimeFrameSequence(
             Path assetRoot,
             String clipId,
@@ -1522,6 +1905,10 @@ final class TestRoomScene implements Scene {
 
     private String slimeTextureId(String clipId, int frame) {
         return SLIME_TEXTURE_PREFIX + clipId + "_" + String.format("%02d", frame);
+    }
+
+    private String impalerTextureId(String clipId, int frame) {
+        return IMPALER_TEXTURE_PREFIX + clipId + "_" + String.format("%02d", frame);
     }
 
     private enum EnemyKind {
@@ -1557,6 +1944,53 @@ final class TestRoomScene implements Scene {
         WALKER,
         FLYER,
         CHARGER
+    }
+
+    private static final class BossActor {
+        private static final int MAX_HEALTH = 18;
+
+        private final KinematicBody body;
+        private final AnimationSetDefinition animationSet;
+        private final AnimationPlayer animator = new AnimationPlayer();
+        private final HealthPool health = new HealthPool(MAX_HEALTH, 0.12f);
+        private final HitboxDefinition attackHitboxDefinition = new HitboxDefinition(112.0f, 78.0f, 2.0f, 12.0f);
+        private final float drawWidth = 360.0f;
+        private final float drawHeight = 149.0f;
+        private final float drawOffsetX = 88.0f;
+        private final float drawOffsetY = -28.0f;
+        private final DebugColor fallbackColor = new DebugColor(0.72f, 0.58f, 0.35f, 1.0f);
+        private int facingDirection = -1;
+
+        private BossActor(String spawnId, float spawnX, float spawnY, AnimationSetDefinition animationSet) {
+            this.body = new KinematicBody(spawnX, spawnY, 58.0f, 104.0f);
+            this.animationSet = animationSet;
+            this.animator.play(animationSet.clip("idle"));
+        }
+
+        private boolean facingRight() {
+            if (Math.abs(body.velocityX()) > 0.01f) {
+                return body.velocityX() > 0.0f;
+            }
+            return facingDirection > 0;
+        }
+
+        private HitboxInstance createAttackHitbox(AttackDefinition attack) {
+            return attackHitboxDefinition.createInstance(
+                    BOSS_ENTITY_ID,
+                    CombatTeam.ENEMY,
+                    attack,
+                    body.bounds(),
+                    facingRight() ? FacingDirection.RIGHT : FacingDirection.LEFT,
+                    true
+            );
+        }
+
+        private Aabb attackBounds() {
+            return attackHitboxDefinition.createBounds(
+                    body.bounds(),
+                    facingRight() ? FacingDirection.RIGHT : FacingDirection.LEFT
+            );
+        }
     }
 
     private static final class EnemyActor {
@@ -1699,8 +2133,21 @@ final class TestRoomScene implements Scene {
                 + " | abilities=" + abilityState.unlockedAbilityIds()
                 + " | dash=" + playerDashSeconds
                 + " | enemiesAlive=" + aliveEnemyCount()
+                + " | boss=" + bossStateLabel()
                 + " | selectedAI=" + selectedEnemyState()
                 + " | A/D move, Space jump, J attack, Shift/K dash, R reset, Esc quit");
+    }
+
+    private String bossStateLabel() {
+        if (bossArenaStatus == null) {
+            return "none";
+        }
+        if (boss == null) {
+            return bossArenaStatus.state().name();
+        }
+        return bossArenaStatus.state().name()
+                + ":" + bossArenaStatus.phase().id()
+                + ":" + boss.health.currentHealth() + "/" + boss.health.maxHealth();
     }
 
     private String selectedEnemyState() {

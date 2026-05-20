@@ -162,6 +162,63 @@ final class RoomLoaderTest {
     }
 
     @Test
+    void loadsBossArenaDefinitions() {
+        RoomDefinition room = new RoomLoader().load(new StringReader("""
+                {
+                  "room_id": "forest_boss_01",
+                  "biome_id": "forest",
+                  "width_tiles": 10,
+                  "height_tiles": 5,
+                  "tile_size": 32,
+                  "solid_tiles": [[0,0],[1,0],[2,0],[3,0]],
+                  "spawns": [
+                    {"id":"entry_left","type":"player_spawn","x":64,"y":64},
+                    {"id":"impaler_boss","type":"boss_spawn","x":192,"y":64}
+                  ],
+                  "doors": [{"id":"left_exit","x":32,"y":32,"w":16,"h":64,"target_room":"self","target_spawn":"entry_left"}],
+                  "boss_arenas": [{
+                    "id":"impaler_arena",
+                    "boss_id":"impaler",
+                    "defeat_flag_id":"boss_impaler_defeated",
+                    "arena":{"x":32,"y":0,"w":256,"h":160},
+                    "activation":{"x":96,"y":0,"w":160,"h":160},
+                    "locked_door_ids":["left_exit"]
+                  }]
+                }
+                """));
+
+        assertEquals(1, room.bossArenas().size());
+        assertEquals("impaler", room.bossArenas().get(0).bossId());
+        assertEquals("left_exit", room.bossArenas().get(0).lockedDoorIds().get(0));
+    }
+
+    @Test
+    void rejectsBossArenaReferencingMissingLockedDoor() {
+        RoomLoader loader = new RoomLoader();
+
+        assertThrows(RoomValidationException.class, () -> loader.load(new StringReader("""
+                {
+                  "room_id": "broken",
+                  "biome_id": "forest",
+                  "width_tiles": 10,
+                  "height_tiles": 5,
+                  "tile_size": 32,
+                  "solid_tiles": [[0,0]],
+                  "spawns": [{"id":"entry_left","type":"player_spawn","x":64,"y":64}],
+                  "doors": [{"id":"left_exit","x":32,"y":32,"w":16,"h":64,"target_room":"self","target_spawn":"entry_left"}],
+                  "boss_arenas": [{
+                    "id":"impaler_arena",
+                    "boss_id":"impaler",
+                    "defeat_flag_id":"boss_impaler_defeated",
+                    "arena":{"x":32,"y":0,"w":256,"h":160},
+                    "activation":{"x":96,"y":0,"w":160,"h":160},
+                    "locked_door_ids":["right_exit"]
+                  }]
+                }
+                """)));
+    }
+
+    @Test
     void rejectsInvalidTileSizeForV1() {
         RoomLoader loader = new RoomLoader();
 

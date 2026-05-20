@@ -7,16 +7,27 @@ public record SaveGame(
         String checkpointRoomId,
         String checkpointSpawnId,
         List<String> visitedRoomIds,
-        List<String> unlockedAbilityIds
+        List<String> unlockedAbilityIds,
+        List<String> worldFlagIds
 ) {
     public static final int CURRENT_VERSION = 1;
 
     public SaveGame(String checkpointRoomId, String checkpointSpawnId) {
-        this(CURRENT_VERSION, checkpointRoomId, checkpointSpawnId, List.of(checkpointRoomId), List.of());
+        this(CURRENT_VERSION, checkpointRoomId, checkpointSpawnId, List.of(checkpointRoomId), List.of(), List.of());
     }
 
     public SaveGame(int version, String checkpointRoomId, String checkpointSpawnId, List<String> visitedRoomIds) {
-        this(version, checkpointRoomId, checkpointSpawnId, visitedRoomIds, List.of());
+        this(version, checkpointRoomId, checkpointSpawnId, visitedRoomIds, List.of(), List.of());
+    }
+
+    public SaveGame(
+            int version,
+            String checkpointRoomId,
+            String checkpointSpawnId,
+            List<String> visitedRoomIds,
+            List<String> unlockedAbilityIds
+    ) {
+        this(version, checkpointRoomId, checkpointSpawnId, visitedRoomIds, unlockedAbilityIds, List.of());
     }
 
     public SaveGame {
@@ -39,6 +50,12 @@ public record SaveGame(
         for (String abilityId : unlockedAbilityIds) {
             if (abilityId == null || abilityId.isBlank()) {
                 throw new SaveValidationException("unlockedAbilityIds must not contain blank values");
+            }
+        }
+        worldFlagIds = worldFlagIds == null ? List.of() : List.copyOf(worldFlagIds);
+        for (String worldFlagId : worldFlagIds) {
+            if (worldFlagId == null || worldFlagId.isBlank()) {
+                throw new SaveValidationException("worldFlagIds must not contain blank values");
             }
         }
     }

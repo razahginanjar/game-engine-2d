@@ -30,7 +30,8 @@
     { "id": "skeleton_b", "type": "enemy_spawn", "x": 960, "y": 64 }
   ],
   "doors": [
-    { "id": "left_exit", "x": 32, "y": 32, "w": 24, "h": 96, "target_room": "forest_test_01", "target_spawn": "entry_right" }
+    { "id": "left_exit", "x": 32, "y": 32, "w": 24, "h": 96, "target_room": "forest_test_01", "target_spawn": "entry_right" },
+    { "id": "right_exit", "x": 1224, "y": 32, "w": 24, "h": 96, "target_room": "forest_boss_01", "target_spawn": "entry_left" }
   ],
   "ability_pickups": [
     { "id": "double_jump_pickup", "ability_id": "double_jump", "x": 304, "y": 64, "w": 24, "h": 24 }

@@ -21,6 +21,7 @@
         <module>engine-animation</module>
         <module>engine-ai</module>
         <module>engine-combat</module>
+        <module>engine-boss</module>
         <module>engine-progression</module>
         <module>sample-metroidvania</module>
         <module>desktop</module>

@@ -54,6 +54,11 @@
         </dependency>
         <dependency>
             <groupId>io.github.razahginanjar</groupId>
+            <artifactId>engine-boss</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>io.github.razahginanjar</groupId>
             <artifactId>engine-progression</artifactId>
             <version>${project.version}</version>
         </dependency>
