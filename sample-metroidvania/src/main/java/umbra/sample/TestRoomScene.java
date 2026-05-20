@@ -144,7 +144,7 @@ final class TestRoomScene implements Scene {
     private static final float PLAYER_DASH_SPEED = 430.0f;
     private static final float PLAYER_DASH_DURATION_SECONDS = 0.16f;
     private static final float PLAYER_DASH_COOLDOWN_SECONDS = 0.35f;
-    private static final float BOSS_ATTACK_RANGE = 124.0f;
+    private static final float BOSS_ATTACK_REACH_PADDING = 6.0f;
     private static final float BOSS_PHASE_ONE_SPEED = 54.0f;
     private static final float BOSS_PHASE_TWO_SPEED = 76.0f;
     private static final float BOSS_HEALTH_BAR_WIDTH = 360.0f;
@@ -185,8 +185,8 @@ final class TestRoomScene implements Scene {
     private final AttackTimelinePlayer bossAttackTimeline = new AttackTimelinePlayer();
     private final BossAttackSelector bossAttackSelector = new BossAttackSelector();
     private final List<BossAttackPattern> bossAttackPatterns = List.of(
-            new BossAttackPattern("impaler_stab", "phase_1", 32.0f, 150.0f, 1.05f),
-            new BossAttackPattern("impaler_sweep", "phase_2", 32.0f, 178.0f, 0.76f)
+            new BossAttackPattern("impaler_stab", "phase_1", 0.0f, 72.0f, 1.05f),
+            new BossAttackPattern("impaler_sweep", "phase_2", 0.0f, 72.0f, 0.76f)
     );
     private final AttackTimelineDefinition slashTimeline = new AttackTimelineDefinition(
             new AttackDefinition("player_slash_01", 1, 160.0f, 40.0f, 0.045f, 0.18f, "slash"),
@@ -1181,13 +1181,16 @@ final class TestRoomScene implements Scene {
         float bossCenterX = boss.body.x() + boss.body.width() * 0.5f;
         float playerCenterX = player.x() + player.width() * 0.5f;
         float dx = playerCenterX - bossCenterX;
-        float distance = Math.abs(dx);
+        float edgeDistance = boss.edgeDistanceTo(player.bounds());
         boss.facingDirection = dx >= 0.0f ? 1 : -1;
 
-        if (bossAttackTimeline.acceptingNewAttack()) {
+        if (!bossAttackTimeline.acceptingNewAttack()) {
+            return;
+        }
+        if (boss.attack2CanReach(player.bounds())) {
             Optional<BossAttackPattern> selectedAttack = bossAttackSelector.update(
                     bossArenaStatus.phase().id(),
-                    distance,
+                    edgeDistance,
                     bossAttackPatterns,
                     deltaSeconds
             );
@@ -1198,11 +1201,6 @@ final class TestRoomScene implements Scene {
                 boss.body.setVelocityX(0.0f);
                 return;
             }
-        } else {
-            return;
-        }
-
-        if (distance <= BOSS_ATTACK_RANGE) {
             boss.body.setVelocityX(0.0f);
             return;
         }
@@ -1588,7 +1586,7 @@ final class TestRoomScene implements Scene {
                 boss.body.y() + boss.drawOffsetY,
                 boss.drawWidth,
                 boss.drawHeight,
-                !boss.facingRight(),
+                boss.facingRight(),
                 false,
                 WHITE
         ));
@@ -1980,6 +1978,32 @@ final class TestRoomScene implements Scene {
                 return body.velocityX() > 0.0f;
             }
             return facingDirection > 0;
+        }
+
+        private boolean attack2CanReach(Aabb targetBounds) {
+            return targetInFacingDirection(targetBounds)
+                    && edgeDistanceTo(targetBounds) <= body.width() + BOSS_ATTACK_REACH_PADDING
+                    && verticalOverlap(body.bounds(), targetBounds);
+        }
+
+        private boolean targetInFacingDirection(Aabb targetBounds) {
+            float bodyCenterX = body.x() + body.width() * 0.5f;
+            float targetCenterX = targetBounds.x() + targetBounds.width() * 0.5f;
+            return facingRight() ? targetCenterX >= bodyCenterX : targetCenterX <= bodyCenterX;
+        }
+
+        private float edgeDistanceTo(Aabb targetBounds) {
+            if (targetBounds.x() >= body.bounds().right()) {
+                return targetBounds.x() - body.bounds().right();
+            }
+            if (targetBounds.right() <= body.x()) {
+                return body.x() - targetBounds.right();
+            }
+            return 0.0f;
+        }
+
+        private boolean verticalOverlap(Aabb first, Aabb second) {
+            return first.y() < second.top() && first.top() > second.y();
         }
 
         private List<HitboxInstance> createAttack2Hitboxes(AttackDefinition attack, int frameIndex) {
